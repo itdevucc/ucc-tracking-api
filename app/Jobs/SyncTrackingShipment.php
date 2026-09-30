@@ -26,7 +26,7 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
 
     public function uniqueId(): string
     {
-        return (string) $this->shipment->id;
+        return (string)$this->shipment->id;
     }
 
     public function backoff(): array
@@ -36,13 +36,16 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
 
     public function handle(CarrierConnectorManager $connectors, DcsaEventIngestionService $ingestion): void
     {
+
         $shipment = $this->shipment->fresh('carrier');
 
         $run = TrackingSyncRun::query()->create([
             'carrier_id' => $shipment->carrier_id,
             'tracking_shipment_id' => $shipment->id,
             'status' => 'RUNNING',
-            'request_parameters' => ['booking_reference' => $shipment->booking_reference],
+            'request_parameters' => [
+                'booking_reference' => $shipment->booking_reference
+            ],
             'started_at' => now(),
         ]);
 

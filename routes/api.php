@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ApiTokenController;
+use App\Http\Controllers\Api\TrackingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -13,4 +14,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/tokens', [ApiTokenController::class, 'index']);
     Route::delete('/auth/token', [ApiTokenController::class, 'destroyCurrent']);
     Route::delete('/auth/tokens', [ApiTokenController::class, 'destroyAll']);
+
+    Route::get('/v1/tracking/{booking}', [TrackingController::class, 'show'])
+        ->middleware('ability:tracking:read')
+        ->name('api.tracking.show');
 });

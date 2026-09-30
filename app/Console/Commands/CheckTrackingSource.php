@@ -15,35 +15,44 @@ class CheckTrackingSource extends Command
 
     public function handle(OperationalBookingRepository $bookings): int
     {
+
         $connection = config('tracking.source.connection');
 
         try {
+
             $database = DB::connection($connection)->getDatabaseName();
+
             $readOnly = DB::connection($connection)
                 ->selectOne('SELECT @@session.tx_read_only AS enabled')
                 ->enabled;
 
-            // También ejecuta las protecciones de base autorizada y valida la consulta real.
             $bookings->candidates(1);
+
         } catch (Throwable $exception) {
-            $this->error('La conexión de bookings no es válida: '.$exception->getMessage());
+
+            $this->error('La conexión de bookings no es válida: ' . $exception->getMessage());
 
             return self::FAILURE;
+
         }
 
         $this->table(['Comprobación', 'Resultado'], [
             ['Conexión', $connection],
             ['Base de datos', $database],
-            ['Sesión de solo lectura', (bool) $readOnly ? 'Sí' : 'No'],
+            ['Sesión de solo lectura', (bool)$readOnly ? 'Sí' : 'No'],
             ['Consulta de bookings', 'Correcta'],
         ]);
 
-        if (! $readOnly) {
+        if (!$readOnly) {
+
             $this->error('La sesión no está configurada en modo de solo lectura.');
 
             return self::FAILURE;
+
         }
 
         return self::SUCCESS;
+
     }
+
 }

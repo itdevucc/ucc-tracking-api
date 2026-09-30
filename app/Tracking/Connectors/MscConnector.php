@@ -6,6 +6,8 @@ use App\Contracts\CarrierTrackingConnector;
 use App\Data\CarrierTrackingResponse;
 use App\Models\TrackingShipment;
 use App\Tracking\MscAccessTokenProvider;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 class MscConnector implements CarrierTrackingConnector
@@ -17,6 +19,10 @@ class MscConnector implements CarrierTrackingConnector
         return 'msc';
     }
 
+    /**
+     * @throws RequestException
+     * @throws ConnectionException
+     */
     public function fetch(TrackingShipment $shipment): CarrierTrackingResponse
     {
         $response = Http::acceptJson()

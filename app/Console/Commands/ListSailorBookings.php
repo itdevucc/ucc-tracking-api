@@ -13,6 +13,7 @@ class ListSailorBookings extends Command
 
     public function handle(OperationalBookingRepository $bookings): int
     {
+
         $limit = filter_var($this->option('limit'), FILTER_VALIDATE_INT, [
             'options' => [
                 'min_range' => 1,

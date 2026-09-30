@@ -18,16 +18,23 @@ class HapagLloydConnector implements CarrierTrackingConnector
     public function fetch(TrackingShipment $shipment): CarrierTrackingResponse
     {
         $clientId = config('tracking.hapag_lloyd.client_id');
+
         $clientSecret = config('tracking.hapag_lloyd.client_secret');
 
         if (! $clientId || ! $clientSecret) {
+
             throw new LogicException('Faltan HAPAG_CLIENT_ID o HAPAG_CLIENT_SECRET.');
+
         }
 
-        $query = ['carrierBookingReference' => $shipment->booking_reference];
+        $query = [
+            'carrierBookingReference' => $shipment->booking_reference
+        ];
 
         if ($shipment->last_synced_at) {
+
             $query['eventCreatedDateTime:gte'] = $shipment->last_synced_at->clone()->subMinutes(5)->toIso8601String();
+
         }
 
         $response = Http::acceptJson()

@@ -14,23 +14,30 @@ class ImportTrackingBookings extends Command
 {
     public function handle(BookingImporter $importer): int
     {
+
         $limit = (int) ($this->option('limit') ?: config('tracking.sync.batch_size'));
+
         $carrierCode = $this->option('carrier');
 
         if ($carrierCode && ! in_array($carrierCode, config('tracking.source.carrier_codes'), true)) {
+
             $this->error('La naviera debe ser HLCU o MSCU.');
 
             return self::INVALID;
+
         }
 
         $shipments = $importer->import($limit, $carrierCode);
 
         if ($this->option('dispatch')) {
+
             $shipments->each(fn ($shipment) => SyncTrackingShipment::dispatch($shipment));
+
         }
 
         $this->info("Bookings importados o actualizados: {$shipments->count()}");
 
         return self::SUCCESS;
+
     }
 }
