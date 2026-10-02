@@ -10,15 +10,40 @@ class TrackingShipmentResource extends JsonResource
     public function toArray(Request $request): array
     {
         $events = $this->events->sortBy('event_date_time')->values();
-        $firstLocation = $events->firstWhere('tracking_location_id', '!=', null)?->location;
-        $lastLocation = $events->whereNotNull('tracking_location_id')->last()?->location;
+        $routePoints = $this->routePoints($events, $request);
+        $firstPoint = $routePoints->first();
+        $lastPoint = $routePoints->last();
+        $departure = $this->scheduleEvent($events, ['DEPA', 'LOAD'], false);
+        $arrival = $this->scheduleEvent($events, ['ARRI', 'DISC'], true);
+        $documentReference = $this->documentReference($events);
+        $vesselCall = $events
+            ->first(fn ($event) => filled($event->transportCall?->vessel_name))
+            ?->transportCall;
 
         return [
             'id' => $this->id,
             'booking_number' => $this->booking_reference,
-            'shipment_number' => $this->transport_document_reference ?? $this->booking_reference,
+            'shipment_number' => $documentReference ?? $this->booking_reference,
+            'transport_document_reference' => $documentReference,
+            'bl_number' => $documentReference,
             'sealine' => $this->carrier->scac,
             'sealine_name' => $this->carrier->name,
+            'carrier_name' => $this->carrier->name,
+            'carrier_departure_name' => $this->carrier->name,
+            'tracking_api_version' => $this->carrier->tracking_api_version,
+            'tracking_source' => $this->carrier->name.' · DCSA Track & Trace '.($this->carrier->tracking_api_version ?? ''),
+            'etd' => $departure?->event_date_time?->toIso8601String(),
+            'eta' => $arrival?->event_date_time?->toIso8601String(),
+            'pol_etd' => $departure?->event_date_time?->toIso8601String(),
+            'pod_eta' => $arrival?->event_date_time?->toIso8601String(),
+            'vessel' => $vesselCall ? [
+                'name' => $vesselCall->vessel_name,
+                'imo' => $vesselCall->vessel_imo_number,
+                'voyage' => $vesselCall->export_voyage_number ?? $vesselCall->import_voyage_number,
+            ] : null,
+            'vessel_name' => $vesselCall?->vessel_name,
+            'voyage_number' => $vesselCall?->export_voyage_number ?? $vesselCall?->import_voyage_number,
+            'container_count' => $this->containers->count(),
             'link' => null,
             'metadata' => [
                 'shipmentType' => 'BK',
@@ -29,34 +54,79 @@ class TrackingShipmentResource extends JsonResource
                 'updatedAt' => $this->last_synced_at?->toIso8601String(),
                 'warnings' => [],
             ],
-            'path_data' => $this->pathData($events),
+            'path_data' => $this->pathData($routePoints),
+            'route_points' => $routePoints->values()->all(),
             'ais_data' => null,
-            'pod_code' => $lastLocation?->un_location_code,
-            'pol_code' => $firstLocation?->un_location_code,
+            'pod_code' => data_get($lastPoint, 'location.locode'),
+            'pol_code' => data_get($firstPoint, 'location.locode'),
             'shipping_status' => $this->canonical_status,
-            'pod_eta' => null,
-            'pol_name' => $firstLocation?->name,
-            'pod_name' => $lastLocation?->name,
+            'pol_name' => data_get($firstPoint, 'location.name'),
+            'pod_name' => data_get($lastPoint, 'location.name'),
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
             'containers' => TrackingContainerResource::collection($this->containers)->resolve($request),
-            'stops' => $events
-                ->whereNotNull('tracking_location_id')
-                ->map(fn ($event) => [
-                    'date' => $event->event_date_time?->toIso8601String(),
-                    'is_actual' => $event->event_classifier_code === 'ACT',
-                    'event_code' => $event->event_code,
-                    'location' => (new TrackingLocationResource($event->location))->resolve($request),
-                ])
-                ->values()
-                ->all(),
+            'stops' => $routePoints->values()->map(function ($point, $index) use ($routePoints) {
+                return [
+                    ...$point,
+                    'stop_type' => $index === 0 ? 'POL' : ($index === $routePoints->count() - 1 ? 'POD' : 'TSP'),
+                    'predictive_eta' => $point['is_actual'] ? null : $point['date'],
+                ];
+            })->all(),
         ];
     }
 
-    private function pathData($events): array
+    private function scheduleEvent($events, array $codes, bool $last)
     {
-        return $events
+        $matches = $events->filter(
+            fn ($event) => in_array(strtoupper((string) $event->event_code), $codes, true),
+        );
+
+        if ($matches->isEmpty()) {
+            return null;
+        }
+
+        $estimated = $matches->filter(
+            fn ($event) => strtoupper((string) $event->event_classifier_code) !== 'ACT',
+        );
+
+        $candidates = $estimated->isNotEmpty() ? $estimated : $matches;
+
+        return $last ? $candidates->last() : $candidates->first();
+    }
+
+    private function documentReference($events): ?string
+    {
+        if (filled($this->transport_document_reference)) {
+            return $this->transport_document_reference;
+        }
+
+        $documentEvent = $events->first(
+            fn ($event) => filled($event->document_id)
+                && in_array(strtoupper((string) $event->document_type_code), ['BOL', 'TRD'], true),
+        );
+
+        if ($documentEvent) {
+            return $documentEvent->document_id;
+        }
+
+        foreach ($events as $event) {
+            foreach ($event->references ?? [] as $reference) {
+                $type = strtoupper((string) ($reference['referenceType'] ?? $reference['type'] ?? ''));
+                $value = $reference['referenceValue'] ?? $reference['value'] ?? null;
+
+                if (filled($value) && in_array($type, ['BOL', 'BL', 'TRD'], true)) {
+                    return (string) $value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function routePoints($events, Request $request)
+    {
+        $points = $events
             ->whereNotNull('tracking_location_id')
-            ->map(function ($event) {
+            ->map(function ($event) use ($request) {
                 $latitude = $event->location?->catalog?->latitude ?? $event->location?->latitude;
                 $longitude = $event->location?->catalog?->longitude ?? $event->location?->longitude;
 
@@ -67,18 +137,42 @@ class TrackingShipmentResource extends JsonResource
                 return [
                     'lat' => (float) $latitude,
                     'lng' => (float) $longitude,
-                    'updatedAt' => $event->event_date_time?->toIso8601String(),
-                    'routeType' => strtoupper((string) ($event->transportCall?->mode_of_transport ?? '')) === 'VESSEL'
-                        ? 'SEA'
-                        : 'LAND',
+                    'date' => $event->event_date_time?->toIso8601String(),
+                    'is_actual' => $event->event_classifier_code === 'ACT',
+                    'event_code' => $event->event_code,
+                    'route_type' => strtoupper((string) ($event->transportCall?->mode_of_transport ?? '')) === 'VESSEL' ? 'SEA' : 'LAND',
+                    'transport_type' => $event->transportCall?->mode_of_transport,
+                    'location' => (new TrackingLocationResource($event->location))->resolve($request),
                 ];
             })
             ->filter()
-            ->values()
-            ->groupBy('routeType')
+            ->values();
+
+        return $points->reduce(function ($result, $point) {
+            $previous = $result->last();
+
+            if (! $previous || data_get($previous, 'location.id') !== data_get($point, 'location.id')) {
+                $result->push($point);
+            } else {
+                $result->put($result->count() - 1, $point);
+            }
+
+            return $result;
+        }, collect());
+    }
+
+    private function pathData($routePoints): array
+    {
+        return $routePoints
+            ->groupBy('route_type')
             ->map(fn ($path, $routeType) => [
                 'routeType' => $routeType,
-                'path' => $path->map(fn ($point) => collect($point)->except('routeType')->all())->values()->all(),
+                'path' => $path->map(fn ($point) => [
+                    'lat' => $point['lat'],
+                    'lng' => $point['lng'],
+                    'updatedAt' => $point['date'],
+                    'isActual' => $point['is_actual'],
+                ])->values()->all(),
             ])
             ->values()
             ->all();

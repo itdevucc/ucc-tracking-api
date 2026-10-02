@@ -13,9 +13,13 @@ class TrackingLocationResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name ?? $this->catalog?->name,
             'locode' => $this->un_location_code ?? $this->catalog?->un_location_code,
-            'country_code' => $this->country_code,
-            'lat' => $this->catalog?->latitude ?? ($this->latitude !== null ? (float) $this->latitude : null),
-            'lng' => $this->catalog?->longitude ?? ($this->longitude !== null ? (float) $this->longitude : null),
+            'country_code' => $this->country_code ?? $this->catalog?->country_code,
+            'lat' => ($this->catalog?->latitude ?? $this->latitude) !== null
+                ? (float) ($this->catalog?->latitude ?? $this->latitude)
+                : null,
+            'lng' => ($this->catalog?->longitude ?? $this->longitude) !== null
+                ? (float) ($this->catalog?->longitude ?? $this->longitude)
+                : null,
         ];
     }
 }

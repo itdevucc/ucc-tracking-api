@@ -19,6 +19,7 @@ class TrackingEventResource extends JsonResource
             'description' => $this->description,
             'event_code' => $this->event_code,
             'event_type' => $this->event_type,
+            'event_classifier_code' => $this->event_classifier_code,
             'is_actual' => $this->event_classifier_code === 'ACT',
             'route_type' => strtoupper((string) $call?->mode_of_transport) === 'VESSEL' ? 'SEA' : 'LAND',
             'status' => $this->canonical_status,
