@@ -77,10 +77,9 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? [
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_INIT_COMMAND : PDO::MYSQL_ATTR_INIT_COMMAND)
-                    => 'SET SESSION TRANSACTION READ ONLY',
-            ] : [],
+            // Permite la actualización autorizada de has_carrier_tracking.
+            // Los permisos de la cuenta deben limitar UPDATE a esa columna.
+            'options' => [],
         ],
 
         'mariadb' => [
