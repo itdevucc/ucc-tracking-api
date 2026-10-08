@@ -33,6 +33,8 @@ return [
         'client_secret' => env('HAPAG_CLIENT_SECRET'),
     ],
     'msc' => [
+        'request_delay_ms' => (int) env('MSC_REQUEST_DELAY_MS', 300),
+        'rate_limit_store' => env('MSC_RATE_LIMIT_STORE', 'database'),
         'base_url' => env('MSC_TRACKING_BASE_URL', 'https://api.tech.msc.com/msc/trackandtrace/v2.2'),
         'booking_parameter' => env('MSC_TRACKING_BOOKING_PARAMETER', 'carrierBookingReference'),
         'tenant_id' => env('MSC_TENANT_ID'),
