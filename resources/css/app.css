@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+[x-cloak] { display: none !important; }
+
+.maritime-map-wrap { position: relative; isolation: isolate; z-index: 0; }
+.maritime-map { height: 400px; width: 100%; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+.map-legend-line { display: inline-block; width: 24px; margin-right: 6px; vertical-align: middle; border-top: 3px solid; }
+.map-actual { border-color: #168247; }
+.map-planned { border-color: #d18b00; border-top-style: dashed; }
+.map-land { border-color: #64748b; border-top-style: dashed; }
+.maritime-event-info strong { display: block; color: #dc3545; margin-bottom: 4px; }
+.maritime-event-location { font-weight: 600; margin-bottom: 5px; }
+.maritime-event-meta { color: #6c757d; line-height: 1.6; }
+@media (max-width: 640px) { .maritime-map { height: 300px; } }

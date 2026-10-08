@@ -57,13 +57,17 @@ class TrackingShipmentResource extends JsonResource
             'path_data' => $this->pathData($routePoints),
             'route_points' => $routePoints->values()->all(),
             'ais_data' => null,
-            'pod_code' => data_get($lastPoint, 'location.locode'),
+            'pod_code' => $this->pod_code ?? data_get($lastPoint, 'location.locode'),
             'pol_code' => data_get($firstPoint, 'location.locode'),
             'shipping_status' => $this->canonical_status,
             'pol_name' => data_get($firstPoint, 'location.name'),
-            'pod_name' => data_get($lastPoint, 'location.name'),
+            'pod_name' => $this->pod_name ?? data_get($lastPoint, 'location.name'),
+            'tracking_completed_at' => $this->tracking_completed_at?->toIso8601String(),
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
-            'containers' => TrackingContainerResource::collection($this->containers)->resolve($request),
+            'events' => TrackingEventResource::collection($events)->resolve($request),
+            'containers' => TrackingContainerResource::collection(
+                $this->containersWithShipmentEvents($events),
+            )->resolve($request),
             'stops' => $routePoints->values()->map(function ($point, $index) use ($routePoints) {
                 return [
                     ...$point,
@@ -72,6 +76,24 @@ class TrackingShipmentResource extends JsonResource
                 ];
             })->all(),
         ];
+    }
+
+    private function containersWithShipmentEvents($events)
+    {
+        $shipmentEvents = $events->whereNull('tracking_container_id');
+
+        return $this->containers->map(function ($container) use ($shipmentEvents) {
+            $container->setRelation(
+                'events',
+                $container->events
+                    ->concat($shipmentEvents)
+                    ->unique('id')
+                    ->sortBy('event_date_time')
+                    ->values(),
+            );
+
+            return $container;
+        });
     }
 
     private function scheduleEvent($events, array $codes, bool $last)
@@ -95,10 +117,6 @@ class TrackingShipmentResource extends JsonResource
 
     private function documentReference($events): ?string
     {
-        if (filled($this->transport_document_reference)) {
-            return $this->transport_document_reference;
-        }
-
         $documentEvent = $events->first(
             fn ($event) => filled($event->document_id)
                 && in_array(strtoupper((string) $event->document_type_code), ['BOL', 'TRD'], true),
@@ -109,9 +127,23 @@ class TrackingShipmentResource extends JsonResource
         }
 
         foreach ($events as $event) {
-            foreach ($event->references ?? [] as $reference) {
-                $type = strtoupper((string) ($reference['referenceType'] ?? $reference['type'] ?? ''));
-                $value = $reference['referenceValue'] ?? $reference['value'] ?? null;
+            $references = $event->references ?? [];
+
+            if ($references && ! array_is_list($references)) {
+                $references = [$references];
+            }
+
+            foreach ($references as $reference) {
+                $type = strtoupper((string) (
+                    $reference['documentReferenceType']
+                    ?? $reference['referenceType']
+                    ?? $reference['type']
+                    ?? ''
+                ));
+                $value = $reference['documentReferenceValue']
+                    ?? $reference['referenceValue']
+                    ?? $reference['value']
+                    ?? null;
 
                 if (filled($value) && in_array($type, ['BOL', 'BL', 'TRD'], true)) {
                     return (string) $value;
@@ -119,7 +151,9 @@ class TrackingShipmentResource extends JsonResource
             }
         }
 
-        return null;
+        return filled($this->transport_document_reference)
+            ? $this->transport_document_reference
+            : null;
     }
 
     private function routePoints($events, Request $request)
@@ -143,6 +177,20 @@ class TrackingShipmentResource extends JsonResource
                     'route_type' => strtoupper((string) ($event->transportCall?->mode_of_transport ?? '')) === 'VESSEL' ? 'SEA' : 'LAND',
                     'transport_type' => $event->transportCall?->mode_of_transport,
                     'location' => (new TrackingLocationResource($event->location))->resolve($request),
+                    'event' => [
+                        'id' => $event->id,
+                        'code' => $event->event_code,
+                        'description' => $event->description,
+                        'type' => $event->event_type,
+                        'classifier_code' => $event->event_classifier_code,
+                        'status' => $event->canonical_status,
+                        'date' => $event->event_date_time?->toIso8601String(),
+                        'is_actual' => $event->event_classifier_code === 'ACT',
+                        'transport_type' => $event->transportCall?->mode_of_transport,
+                        'vessel_name' => $event->transportCall?->vessel_name,
+                        'voyage' => $event->transportCall?->export_voyage_number
+                            ?? $event->transportCall?->import_voyage_number,
+                    ],
                 ];
             })
             ->filter()
@@ -153,7 +201,8 @@ class TrackingShipmentResource extends JsonResource
 
             if (! $previous || data_get($previous, 'location.id') !== data_get($point, 'location.id')) {
                 $result->push($point);
-            } else {
+            } elseif (data_get($point, 'route_type') === 'SEA'
+                || data_get($previous, 'route_type') !== 'SEA') {
                 $result->put($result->count() - 1, $point);
             }
 

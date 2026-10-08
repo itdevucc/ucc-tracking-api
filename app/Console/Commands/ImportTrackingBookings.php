@@ -31,7 +31,8 @@ class ImportTrackingBookings extends Command
 
         if ($this->option('dispatch')) {
 
-            $shipments->each(fn ($shipment) => SyncTrackingShipment::dispatch($shipment));
+            $shipments->filter(fn ($shipment) => $shipment->sync_enabled && ! $shipment->tracking_completed_at)
+                ->each(fn ($shipment) => SyncTrackingShipment::dispatch($shipment));
 
         }
 

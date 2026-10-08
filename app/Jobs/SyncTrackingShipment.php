@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\TrackingShipment;
 use App\Models\TrackingSyncRun;
 use App\Tracking\CarrierConnectorManager;
+use App\Tracking\CarrierTrackingAvailability;
 use App\Tracking\DcsaEventIngestionService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,6 +18,8 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 5;
 
+    public int $uniqueFor = 900;
+
     public bool $deleteWhenMissingModels = true;
 
     public function __construct(public readonly TrackingShipment $shipment)
@@ -26,7 +29,7 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
 
     public function uniqueId(): string
     {
-        return (string)$this->shipment->id;
+        return 'tracking-v2:'.$this->shipment->id;
     }
 
     public function backoff(): array
@@ -34,10 +37,14 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
         return [60, 300, 900, 3600];
     }
 
-    public function handle(CarrierConnectorManager $connectors, DcsaEventIngestionService $ingestion): void
+    public function handle(CarrierConnectorManager $connectors, DcsaEventIngestionService $ingestion, CarrierTrackingAvailability $availability): void
     {
 
         $shipment = $this->shipment->fresh('carrier');
+
+        if (! $shipment || $shipment->stopSyncIfDestinationReached() || ! $shipment->sync_enabled) {
+            return;
+        }
 
         $run = TrackingSyncRun::query()->create([
             'carrier_id' => $shipment->carrier_id,
@@ -54,6 +61,8 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
             $response = $connectors->for($shipment->carrier->connector)->fetch($shipment);
 
             $result = $ingestion->ingest($shipment, $response);
+
+            $availability->markAvailable($shipment);
 
             $run->update([
                 'status' => 'COMPLETED',

@@ -34,6 +34,8 @@ class BookingImporter
 
                 }
 
+                $podCode = strtoupper(preg_replace('/\s+/', '', (string) ($booking->pod_code ?? '')));
+
                 return [
                     'carrier_id' => $carrier->id,
                     'booking_reference' => trim((string)$booking->booking_reference),
@@ -41,6 +43,9 @@ class BookingImporter
                     'source_system' => $sourceSystem,
                     'source_table' => $sourceTable,
                     'source_id' => (string)$booking->source_id,
+                    'pod_code' => preg_match('/^[A-Z]{2}[A-Z0-9]{3}$/', $podCode) ? $podCode : null,
+                    'pod_name' => $booking->pod_name ?? null,
+                    'expected_container_count' => max(0, (int) ($booking->expected_container_count ?? 0)) ?: null,
                     'next_sync_at' => $now,
                     'sync_enabled' => true,
                     'created_at' => $now,
@@ -61,14 +66,18 @@ class BookingImporter
         TrackingShipment::query()->upsert(
             $rows->all(),
             ['carrier_id', 'booking_reference'],
-            ['transport_document_reference', 'source_system', 'source_table', 'source_id', 'updated_at'],
+            ['transport_document_reference', 'source_system', 'source_table', 'source_id', 'pod_code', 'pod_name', 'expected_container_count', 'updated_at'],
         );
 
-        return TrackingShipment::query()
+        $shipments = TrackingShipment::query()
             ->where('source_system', $sourceSystem)
             ->where('source_table', $sourceTable)
             ->whereIn('source_id', $rows->pluck('source_id'))
             ->get();
+
+        $shipments->each(fn ($shipment) => $shipment->stopSyncIfDestinationReached());
+
+        return $shipments;
 
     }
 }

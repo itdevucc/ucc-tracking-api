@@ -5,18 +5,19 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TrackingShipmentResource;
 use App\Models\TrackingShipment;
+use App\Tracking\CarrierTrackingAvailability;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TrackingController extends Controller
 {
-    public function show(Request $request, string $booking): JsonResponse
+    public function show(Request $request, string $booking, CarrierTrackingAvailability $availability): JsonResponse
     {
         $filters = $request->validate([
             'carrier' => ['sometimes', 'string', 'max:10'],
         ]);
 
-        $shipments = TrackingShipment::query()
+        $shipment = TrackingShipment::query()
             ->where('booking_reference', $booking)
             ->when(
                 $filters['carrier'] ?? null,
@@ -32,19 +33,22 @@ class TrackingController extends Controller
                 'events.location.catalog',
                 'events.transportCall.location.catalog',
             ])
-            ->get();
+            ->orderByDesc('last_synced_at')
+            ->first();
 
-        if ($shipments->isEmpty()) {
+        if (! $shipment) {
             return response()->json([
                 'status' => 404,
                 'message' => 'No se encontró tracking para el booking indicado.',
-                'data' => [],
+                'data' => null,
             ], 404);
         }
 
+        $availability->markAvailable($shipment);
+
         return response()->json([
             'status' => 200,
-            'data' => TrackingShipmentResource::collection($shipments)->resolve($request),
+            'data' => (new TrackingShipmentResource($shipment))->resolve($request),
         ]);
     }
 }

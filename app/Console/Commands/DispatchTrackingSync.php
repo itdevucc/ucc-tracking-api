@@ -19,12 +19,14 @@ class DispatchTrackingSync extends Command
 
         $shipments = TrackingShipment::query()
             ->where('sync_enabled', true)
+            ->whereNull('tracking_completed_at')
             ->where(fn ($query) => $query->whereNull('next_sync_at')->orWhere('next_sync_at', '<=', now()))
             ->orderBy('next_sync_at')
             ->limit($limit)
             ->get();
 
-        $shipments->each(fn ($shipment) => SyncTrackingShipment::dispatch($shipment));
+        $shipments->filter(fn ($shipment) => ! $shipment->stopSyncIfDestinationReached())
+            ->each(fn ($shipment) => SyncTrackingShipment::dispatch($shipment));
 
         $this->info("Sincronizaciones enviadas: {$shipments->count()}");
 

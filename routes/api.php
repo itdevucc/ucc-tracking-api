@@ -10,12 +10,17 @@ Route::post('/auth/tokens', [ApiTokenController::class, 'store'])
     ->name('api.tokens.store');
 
 Route::middleware('auth:sanctum')->group(function () {
+
     Route::get('/user', fn (Request $request) => $request->user());
+
     Route::get('/auth/tokens', [ApiTokenController::class, 'index']);
+
     Route::delete('/auth/token', [ApiTokenController::class, 'destroyCurrent']);
+
     Route::delete('/auth/tokens', [ApiTokenController::class, 'destroyAll']);
 
     Route::get('/v1/tracking/{booking}', [TrackingController::class, 'show'])
         ->middleware('ability:tracking:read')
         ->name('api.tracking.show');
+
 });

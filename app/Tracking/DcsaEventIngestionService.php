@@ -24,9 +24,13 @@ class DcsaEventIngestionService
      */
     public function ingest(TrackingShipment $shipment, CarrierTrackingResponse $response): array
     {
+        if ($shipment->stopSyncIfDestinationReached()) {
+            return ['created' => 0, 'updated' => 0];
+        }
+
         $encoded = json_encode($this->sorted($response->events), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
-        $checksum = hash('sha256', $encoded);
+        $checksum = hash('sha256', config('tracking.ingestion_version').'|'.$encoded);
 
         $raw = TrackingRawPayload::query()->firstOrCreate(
             [
@@ -47,6 +51,13 @@ class DcsaEventIngestionService
 
         if (! $raw->wasRecentlyCreated && $raw->processing_status === 'PROCESSED') {
 
+            $shipment->update([
+                'last_synced_at' => now(),
+                'next_sync_at' => now()->addMinutes(config('tracking.sync.interval_minutes')),
+                'consecutive_failures' => 0,
+                'last_error' => null,
+            ]);
+
             return ['created' => 0, 'updated' => 0];
 
         }
@@ -62,6 +73,13 @@ class DcsaEventIngestionService
                 $type = strtoupper((string) ($event['eventType'] ?? 'UNKNOWN'));
 
                 $code = $this->eventCode($type, $event);
+
+                $mapping = $this->eventMapping(
+                    $shipment,
+                    $type,
+                    $code,
+                    $event['eventClassifierCode'] ?? null,
+                );
 
                 $location = $this->location($event);
 
@@ -80,13 +98,15 @@ class DcsaEventIngestionService
                     'event_type' => $type,
                     'event_classifier_code' => $event['eventClassifierCode'] ?? null,
                     'event_code' => $code,
-                    'canonical_status' => $this->canonicalStatus($shipment, $type, $code, $event['eventClassifierCode'] ?? null),
+                    'canonical_status' => $mapping?->canonical_status ?? 'UNKNOWN',
                     'event_date_time' => $event['eventDateTime'],
                     'event_created_date_time' => $event['eventCreatedDateTime'] ?? null,
                     'document_type_code' => $event['documentTypeCode'] ?? null,
                     'document_id' => $event['documentID'] ?? null,
-                    'description' => $event['eventTypeDescription'] ?? null,
-                    'references' => $event['references'] ?? null,
+                    'description' => filled($event['eventTypeDescription'] ?? null)
+                        ? $event['eventTypeDescription']
+                        : $mapping?->label_es,
+                    'references' => $event['documentReferences'] ?? $event['references'] ?? null,
                 ];
 
                 $trackingEvent = TrackingEvent::query()->updateOrCreate(
@@ -113,6 +133,8 @@ class DcsaEventIngestionService
 
             $raw->update(['processing_status' => 'PROCESSED', 'processed_at' => now()]);
 
+            $shipment->stopSyncIfDestinationReached();
+
             return compact('created', 'updated');
 
         });
@@ -129,24 +151,26 @@ class DcsaEventIngestionService
         };
     }
 
-    private function canonicalStatus(TrackingShipment $shipment, string $type, string $code, ?string $classifier): string
+    private function eventMapping(TrackingShipment $shipment, string $type, string $code, ?string $classifier): ?TrackingEventMapping
     {
-
-        $mapping = TrackingEventMapping::query()
+        return TrackingEventMapping::query()
             ->where(fn ($query) => $query->whereNull('carrier_id')->orWhere('carrier_id', $shipment->carrier_id))
             ->where('source_event_type', $type)
             ->where('source_event_code', $code)
             ->where(fn ($query) => $query->whereNull('source_classifier_code')->orWhere('source_classifier_code', $classifier))
             ->orderByRaw('carrier_id is null')
             ->first();
-
-        return $mapping?->canonical_status ?? 'UNKNOWN';
-
     }
 
     private function location(array $event): ?TrackingLocation
     {
-        $data = $event['eventLocation'] ?? data_get($event, 'transportCall.location');
+        $eventLocation = is_array($event['eventLocation'] ?? null)
+            ? $event['eventLocation']
+            : [];
+        $transportLocation = is_array(data_get($event, 'transportCall.location'))
+            ? data_get($event, 'transportCall.location')
+            : [];
+        $data = array_replace($transportLocation, $eventLocation);
 
         if (! $data) {
 
@@ -154,30 +178,61 @@ class DcsaEventIngestionService
 
         }
 
-        $unLocationCode = $data['UNLocationCode'] ?? data_get($event, 'transportCall.UNLocationCode');
+        $unLocationCode = strtoupper(trim((string) (
+            $data['UNLocationCode']
+            ?? $data['unLocationCode']
+            ?? $event['UNLocationCode']
+            ?? $event['unLocationCode']
+            ?? data_get($event, 'transportCall.UNLocationCode')
+            ?? data_get($event, 'transportCall.unLocationCode')
+            ?? data_get($event, 'transportCall.location.UNLocationCode')
+            ?? data_get($event, 'transportCall.location.unLocationCode')
+            ?? ''
+        )));
         $facilitySmdgCode = data_get($data, 'facility.SMDGCode');
+        $locationName = trim((string) ($data['locationName'] ?? ''));
         $eventDate = ! empty($event['eventDateTime']) ? Carbon::parse($event['eventDateTime']) : null;
         $catalog = $this->locationCatalogs->find(
             $unLocationCode,
             $facilitySmdgCode,
             $eventDate,
-            $data['locationName'] ?? null,
+            $locationName,
         );
 
-        return TrackingLocation::query()->updateOrCreate(
-            [
-                'un_location_code' => $unLocationCode ?: $catalog?->un_location_code,
-                'facility_smdg_code' => $facilitySmdgCode,
-            ],
-            [
-                'tracking_location_catalog_id' => $catalog?->id,
-                'facility_type_code' => data_get($event, 'transportCall.facilityTypeCode'),
-                'name' => $data['locationName'] ?? $catalog?->name,
-                'country_code' => $data['countryCode'] ?? ($catalog ? substr($catalog->un_location_code, 0, 2) : null),
-                'latitude' => $catalog?->latitude,
-                'longitude' => $catalog?->longitude,
-            ],
-        );
+        $resolvedCode = $unLocationCode ?: $catalog?->un_location_code;
+        $location = null;
+
+        if (filled($resolvedCode)) {
+            $location = TrackingLocation::query()
+                ->where('un_location_code', $resolvedCode)
+                ->where('facility_smdg_code', $facilitySmdgCode)
+                ->first();
+        }
+
+        if (! $location && filled($locationName)) {
+            $location = TrackingLocation::query()
+                ->whereNull('un_location_code')
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($locationName)])
+                ->where('facility_smdg_code', $facilitySmdgCode)
+                ->first();
+        }
+
+        $location ??= new TrackingLocation();
+
+        $location->fill([
+            'un_location_code' => $resolvedCode ?: $location->un_location_code,
+            'facility_smdg_code' => $facilitySmdgCode ?: $location->facility_smdg_code,
+            'tracking_location_catalog_id' => $catalog?->id ?? $location->tracking_location_catalog_id,
+            'facility_type_code' => data_get($event, 'transportCall.facilityTypeCode')
+                ?? $location->facility_type_code,
+            'name' => $locationName ?: ($catalog?->name ?? $location->name),
+            'country_code' => $data['countryCode']
+                ?? ($resolvedCode ? substr($resolvedCode, 0, 2) : $location->country_code),
+            'latitude' => $catalog?->latitude ?? $location->latitude,
+            'longitude' => $catalog?->longitude ?? $location->longitude,
+        ])->save();
+
+        return $location;
 
     }
 

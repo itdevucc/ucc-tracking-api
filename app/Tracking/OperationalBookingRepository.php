@@ -2,6 +2,7 @@
 
 namespace App\Tracking;
 
+use App\Models\TrackingShipment;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Query\Builder;
@@ -10,6 +11,27 @@ use LogicException;
 
 class OperationalBookingRepository
 {
+    public function markCarrierTrackingAvailable(TrackingShipment $shipment): void
+    {
+        $connection = config('tracking.source.connection');
+        $bookings = $this->safeTable(config('tracking.source.table'));
+        $carriers = $this->safeTable(config('tracking.source.carriers_table'));
+
+        $this->assertSourceDatabaseIsAllowed($connection);
+
+        DB::connection($connection)
+            ->table($bookings)
+            ->where('id', $shipment->source_id)
+            ->where('carrier_booking_number', $shipment->booking_reference)
+            ->whereIn('id_naviera_salida', function ($query) use ($carriers, $shipment) {
+                $query->select('id')->from($carriers)->where('code', $shipment->carrier->scac);
+            })
+            ->where(function ($query) {
+                $query->where('has_carrier_tracking', 0)->orWhereNull('has_carrier_tracking');
+            })
+            ->update(['has_carrier_tracking' => 1]);
+    }
+
     /**
      * @param int $limit
      * @return Collection
@@ -59,6 +81,8 @@ class OperationalBookingRepository
         $carriers = $this->safeTable(config('tracking.source.carriers_table'));
 
         $states = $this->safeTable(config('tracking.source.states_table'));
+        $bookingHeaders = $this->safeTable(config('tracking.source.bookings_table'));
+        $ports = $this->safeTable(config('tracking.source.ports_table'));
 
         $this->assertSourceDatabaseIsAllowed($connection);
 
@@ -66,6 +90,8 @@ class OperationalBookingRepository
             ->table("{$bookings} as booking")
             ->join("{$carriers} as carrier", 'carrier.id', '=', 'booking.id_naviera_salida')
             ->join("{$states} as state", 'state.id', '=', 'booking.booking_itinerary_state_id')
+            ->leftJoin("{$bookingHeaders} as header", 'header.id', '=', 'booking.booking_id')
+            ->leftJoin("{$ports} as pod", 'pod.id', '=', 'header.port_discharge_id')
             ->whereIn('carrier.code', config('tracking.source.carrier_codes'))
             ->whereIn('state.code', config('tracking.source.state_codes'))
 
@@ -79,6 +105,9 @@ class OperationalBookingRepository
                 'booking.carrier_booking_number as booking_reference',
                 'booking.bill_lading as transport_document_reference',
                 'booking.pol_eta as source_date',
+                'pod.code as pod_code',
+                'pod.name as pod_name',
+                'booking.cant as expected_container_count',
                 'carrier.code as carrier_code',
                 'carrier.name as carrier_name',
                 'state.code as booking_state_code',
@@ -87,7 +116,9 @@ class OperationalBookingRepository
             ->orderBy('booking.id');
 
         if ($carrierCode) {
+
             $query->where('carrier.code', $carrierCode);
+
         }
 
         return $query;
