@@ -11,29 +11,65 @@
 <p x-cloak x-show="error" role="alert" class="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" x-text="error"></p>
 <div aria-live="polite" :aria-busy="loading">
 <section x-show="!shipment && !loading && !error" class="py-20 text-center"><h2 class="font-semibold text-gray-700">Todo el recorrido en un solo lugar</h2><p class="mt-2 text-sm text-gray-500">Consulta naviera, fechas y eventos de tus contenedores.</p></section>
-<template x-if="shipment"><div class="mt-6 space-y-6">
-<section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-<div class="flex flex-wrap justify-between gap-4"><div><span class="rounded bg-red-50 px-3 py-1 text-sm font-semibold text-red-600" x-text="shipment.carrier_name"></span><h2 class="mt-3 text-xl font-semibold" x-text="'Tracking · ' + shipment.booking_number"></h2></div><div class="text-sm text-gray-500"><p class="font-semibold text-gray-700" x-text="shipment.shipping_status"></p><p x-text="'Última consulta: ' + date(shipment.last_synced_at)"></p></div></div>
-<dl class="mt-6 grid grid-cols-2 gap-5 border-t pt-5 lg:grid-cols-5">
-<div><dt class="text-xs text-gray-500">ETD</dt><dd class="mt-1 font-semibold" x-text="date(shipment.etd)"></dd></div>
-<div><dt class="text-xs text-gray-500">ETA</dt><dd class="mt-1 font-semibold" x-text="date(shipment.eta)"></dd></div>
-<div><dt class="text-xs text-gray-500">BL</dt><dd class="mt-1 break-all font-semibold" x-text="shipment.bl_number || '—'"></dd></div>
-<div><dt class="text-xs text-gray-500">Nave</dt><dd class="mt-1 font-semibold" x-text="shipment.vessel_name || '—'"></dd></div>
-<div><dt class="text-xs text-gray-500">Contenedores</dt><dd class="mt-1 font-semibold" x-text="shipment.container_count"></dd></div></dl>
-<div class="mt-5 flex flex-wrap gap-3 rounded-lg bg-gray-50 p-4 text-sm font-semibold"><span x-text="shipment.pol_name || 'Origen sin informar'"></span><span class="text-red-600">→</span><span x-text="shipment.pod_name || 'Destino sin informar'"></span></div>
-</section>
-<section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-<div class="mb-4"><h2 class="font-semibold text-gray-800">Ruta del contenedor</h2><p class="mt-1 text-sm text-gray-500" x-text="selectedContainer ? selectedContainer.container_number : 'Sin contenedores disponibles'"></p><div class="mt-3 flex flex-wrap gap-2"><template x-for="container in shipment.containers" :key="container.id"><button type="button" @click="selectContainer(container.id)" :aria-pressed="selected === String(container.id)" :class="selected === String(container.id) ? 'bg-red-600 text-white' : 'text-gray-600'" class="rounded-lg border px-4 py-2 text-sm font-semibold" x-text="container.container_number"></button></template></div></div>
-<div class="maritime-map-wrap"><div x-ref="maritimeMap" class="maritime-map" role="region" aria-label="Mapa de la ruta marítima"></div></div>
-<p x-cloak x-show="mapError" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" x-text="mapError"></p>
-<div class="mt-4 flex flex-wrap gap-5 text-xs text-gray-600"><span><i class="map-legend-line map-actual"></i>Recorrido real</span><span><i class="map-legend-line map-planned"></i>Previsto</span><span><i class="map-legend-line map-land"></i>Tramo terrestre</span></div>
-<p class="mt-3 text-xs text-gray-400">Los tramos marítimos siguen una red de navegación; no representan la posición ni la derrota exacta del buque. Los tramos terrestres son esquemáticos.</p>
-</section>
-<section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-<div class="border-b p-6"><h2 class="font-semibold">Eventos del embarque</h2><div class="mt-4 flex flex-wrap gap-2">
-<template x-for="container in shipment.containers" :key="container.id"><button type="button" @click="selectContainer(container.id)" :aria-pressed="selected === String(container.id)" :class="selected === String(container.id) ? 'bg-red-600 text-white' : 'text-gray-600'" class="rounded-lg border px-4 py-2 text-sm font-semibold" x-text="container.container_number"></button></template></div><p class="mt-3 text-sm text-gray-500" x-text="events.length + ' eventos · Fechas en tu zona horaria'"></p></div>
-<div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-gray-50 text-xs uppercase text-gray-500"><tr><th class="px-6 py-4">Fecha</th><th class="px-4 py-4">Condición</th><th class="px-4 py-4">Evento</th><th class="px-4 py-4">Lugar</th><th class="px-4 py-4">Transporte</th><th class="px-4 py-4">Nave / viaje</th></tr></thead><tbody class="divide-y">
-<template x-for="event in events" :key="event.id"><tr class="hover:bg-gray-50"><td class="whitespace-nowrap px-6 py-4" x-text="date(event.event_date)"></td><td class="px-4 py-4"><span class="rounded-full px-2 py-1 text-xs font-semibold" :class="event.is_actual ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'" x-text="event.is_actual ? 'Real' : (event.event_classifier_code === 'EST' ? 'Estimado' : (event.event_classifier_code === 'PLN' ? 'Planificado' : event.event_classifier_code || 'Sin clasificar'))"></span></td><td class="px-4 py-4"><span class="font-medium" x-text="event.description || event.event_code || '—'"></span><small class="mt-1 block text-gray-400" x-text="event.event_code"></small></td><td class="px-4 py-4"><span x-text="event.location?.name || '—'"></span><small class="mt-1 block text-gray-400" x-text="event.facility?.name || event.location?.locode || ''"></small></td><td class="px-4 py-4" x-text="event.transport_type || '—'"></td><td class="px-4 py-4" x-text="[event.vessel?.name, event.voyage].filter(Boolean).join(' / ') || '—'"></td></tr></template>
-<tr x-show="!events.length"><td colspan="6" class="px-6 py-12 text-center text-gray-500">Todavía no hay eventos guardados.</td></tr>
-</tbody></table></div></section></div></template></div></div>
+<template x-if="shipment">
+<div class="ucc-tracking-detail mt-6">
+    <header class="tracking-header">
+        <div>
+            <h2 x-text="'Tracking · ' + shipment.booking_number"></h2>
+            <div class="tracking-facts">
+                <span class="carrier-badge" x-text="shipment.sealine_name || shipment.carrier_name"></span>
+                <span>Naviera de salida <strong x-text="shipment.carrier_departure_name || shipment.carrier_name"></strong></span>
+                <span>ETD <strong x-text="date(shipment.etd || shipment.pol_etd)"></strong></span>
+                <span>ETA <strong x-text="date(shipment.eta || shipment.pod_eta)"></strong></span>
+                <span>BL <strong x-text="shipment.transport_document_reference || shipment.bl_number || '—'"></strong></span>
+                <span>Nave <strong x-text="shipment.vessel?.name || shipment.vessel_name || '—'"></strong></span>
+                <span>Contenedores <strong x-text="shipment.container_count || shipment.containers.length"></strong></span>
+            </div>
+            <div class="tracking-source" x-text="(shipment.tracking_source || shipment.carrier_name) + ' · Última consulta: ' + date(shipment.last_synced_at)"></div>
+        </div>
+    </header>
+    <div class="tracking-content">
+        <div class="container-selector" x-show="shipment.containers.length">
+            <span>Contenedor</span>
+            <template x-for="container in shipment.containers" :key="container.id">
+                <button type="button" class="container-chip" :class="{ active: selected === String(container.id) }" :aria-pressed="selected === String(container.id)" @click="selectContainer(container.id)">
+                    <strong x-text="container.container_number || 'Sin número'"></strong>
+                    <small x-show="shipment.transport_document_reference" x-text="'BL ' + (shipment.transport_document_reference || '')"></small>
+                </button>
+            </template>
+        </div>
+        <div class="maritime-map-wrap"><div x-ref="maritimeMap" class="maritime-map" role="region" aria-label="Mapa de la ruta del contenedor seleccionado"></div></div>
+        <p x-cloak x-show="mapError" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" x-text="mapError"></p>
+        <div class="map-legend"><span><i class="map-legend-line map-actual"></i>Recorrido real</span><span><i class="map-legend-line map-planned"></i>Previsto</span><span><i class="map-legend-line map-land"></i>Tramo terrestre</span></div>
+        <section class="events-section" x-show="selectedContainer">
+            <div class="events-title">
+                <strong x-text="'Contenedor ' + (selectedContainer?.container_number || '')"></strong>
+                <span class="bl-chip" x-show="shipment.transport_document_reference" x-text="'BL ' + (shipment.transport_document_reference || '')"></span>
+                <span x-text="(selectedContainer?.equipment_type || '—') + ' · ' + events.length + ' eventos'"></span>
+            </div>
+            <div class="table-responsive">
+                <table class="tracking-events-table">
+                    <thead><tr><th>Fecha</th><th>Estado</th><th>Evento</th><th>Lugar</th><th>Tipo</th><th>Nave / viaje</th></tr></thead>
+                    <tbody>
+                        <template x-for="event in events" :key="event.id">
+                            <tr>
+                                <td class="whitespace-nowrap" x-text="date(event.event_date)"></td>
+                                <td :class="event.is_actual ? 'actual' : 'planned'" x-text="event.is_actual ? 'Real' : 'Previsto'"></td>
+                                <td><span x-text="event.description || '—'"></span><small x-text="event.event_code || ''"></small></td>
+                                <td><span x-text="[event.location?.name, event.location?.country_code].filter(Boolean).join(', ') || event.location?.locode || '—'"></span><small x-text="event.facility?.name || event.facility?.smdg_code || ''"></small></td>
+                                <td><span x-text="event.event_type || event.transport_type || '—'"></span><small x-text="event.transport_type || ''"></small></td>
+                                <td x-text="[event.vessel?.name, event.voyage].filter(Boolean).join(' / ') || '—'"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!events.length"><td colspan="6" class="empty-events">Sin eventos para este contenedor</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <p x-show="!shipment.containers.length" class="empty-events py-6">Sin contenedores disponibles</p>
+    </div>
+</div>
+</template>
+</div>
+</div>
 </x-app-layout>

@@ -4,13 +4,60 @@
 
 [x-cloak] { display: none !important; }
 
+:root { --ucc-red: #b8101e; --ucc-slate: #5b707b; }
+.ucc-logo { display: inline-block; position: relative; aspect-ratio: 2.7 / 1; overflow: hidden; vertical-align: middle; }
+.ucc-logo img { position: absolute; width: 118%; max-width: none; height: auto; left: -12%; top: -54%; }
+.ucc-navbar { border-top: 4px solid var(--ucc-red); box-shadow: 0 2px 12px rgb(44 57 64 / 5%); }
+.ucc-auth { background: radial-gradient(ellipse at top left, #dce3e7, #f5f7f8 65%); }
+.ucc-auth-shell { border: 1px solid #dce3e7; }
+.ucc-auth-intro { background: linear-gradient(145deg, #5b707b, #2c3940); border-bottom: 6px solid var(--ucc-red); }
+
+/* Misma distribución compacta del modal TrackingMaritimeModal de Sailor. */
+.ucc-tracking-detail { width: 100%; color: #343a40; background: #fff; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+.ucc-tracking-detail .tracking-header { display: flex; justify-content: space-between; gap: 16px; padding: 14px 20px 12px; border-bottom: 1px solid #dee2e6; }
+.ucc-tracking-detail .tracking-header h2 { margin: 0 0 8px; font-size: 19px; font-weight: 700; }
+.ucc-tracking-detail .tracking-facts { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; color: #6c757d; font-size: 13px; }
+.ucc-tracking-detail .tracking-facts strong { color: #343a40; }
+.ucc-tracking-detail .carrier-badge, .ucc-tracking-detail .bl-chip { padding: 4px 10px; border-radius: 999px; color: var(--ucc-red); background: #b8101e1a; font-weight: 700; }
+.ucc-tracking-detail .tracking-source { margin-top: 7px; color: #6c757d; font-size: 12px; }
+.ucc-tracking-detail .tracking-content { padding: 14px 20px 20px; }
+.ucc-tracking-detail .container-selector, .ucc-tracking-detail .events-title { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+.ucc-tracking-detail .container-chip { display: flex; flex-direction: column; align-items: flex-start; min-width: 165px; padding: 6px 12px; border: 1px solid #dee2e6; border-radius: 6px; color: #495057; background: #fff; font-weight: 600; }
+.ucc-tracking-detail .container-chip.active { color: #fff; border-color: var(--ucc-red); background: var(--ucc-red); }
+.ucc-tracking-detail .container-chip small { font-size: 11px; }
+.ucc-tracking-detail .events-section { margin-top: 16px; }
+.ucc-tracking-detail .events-title { margin-bottom: 7px; }
+.ucc-tracking-detail .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ucc-tracking-detail .tracking-events-table { width: 100%; min-width: 790px; border-collapse: collapse; font-size: 13px; }
+.ucc-tracking-detail .tracking-events-table th { padding: 8px 10px; color: #6c757d; background: #f8f9fa; font-size: 11px; text-align: left; text-transform: uppercase; }
+.ucc-tracking-detail .tracking-events-table td { padding: 9px 10px; border-bottom: 1px solid #dee2e6; vertical-align: top; }
+.ucc-tracking-detail .tracking-events-table td small { display: block; margin-top: 2px; color: #6c757d; font-size: 11px; }
+.ucc-tracking-detail .actual { color: #168247; font-weight: 700; }
+.ucc-tracking-detail .planned { color: #d18b00; font-weight: 700; }
+.ucc-tracking-detail .empty-events { text-align: center; color: #718096; }
+.ucc-tracking-detail .map-legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 10px; font-size: 12px; color: #6c757d; }
+@media (max-width: 768px) {
+    .ucc-tracking-detail .tracking-header { flex-direction: column; gap: 10px; padding: 12px; }
+    .ucc-tracking-detail .tracking-header h2 { font-size: 20px; overflow-wrap: anywhere; }
+    .ucc-tracking-detail .tracking-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .ucc-tracking-detail .tracking-facts > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+    .ucc-tracking-detail .tracking-facts .carrier-badge { grid-column: 1 / -1; align-items: flex-start; width: fit-content; }
+    .ucc-tracking-detail .tracking-source { font-size: 13px; overflow-wrap: anywhere; }
+    .ucc-tracking-detail .tracking-content { padding: 12px; }
+    .ucc-tracking-detail .container-selector { align-items: stretch; }
+    .ucc-tracking-detail .container-selector > span { flex-basis: 100%; }
+    .ucc-tracking-detail .container-chip { width: 100%; min-width: 0; }
+    .ucc-tracking-detail .events-title { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 420px) { .ucc-tracking-detail .tracking-facts { grid-template-columns: 1fr; } }
+
 .maritime-map-wrap { position: relative; isolation: isolate; z-index: 0; }
 .maritime-map { height: 400px; width: 100%; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
 .map-legend-line { display: inline-block; width: 24px; margin-right: 6px; vertical-align: middle; border-top: 3px solid; }
 .map-actual { border-color: #168247; }
 .map-planned { border-color: #d18b00; border-top-style: dashed; }
 .map-land { border-color: #64748b; border-top-style: dashed; }
-.maritime-event-info strong { display: block; color: #dc3545; margin-bottom: 4px; }
+.maritime-event-info strong { display: block; color: var(--ucc-red); margin-bottom: 4px; }
 .maritime-event-location { font-weight: 600; margin-bottom: 5px; }
 .maritime-event-meta { color: #6c757d; line-height: 1.6; }
 @media (max-width: 640px) { .maritime-map { height: 300px; } }
