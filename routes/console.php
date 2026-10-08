@@ -12,5 +12,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('tracking:import-bookings --limit=1000')->everyThirtyMinutes()->withoutOverlapping();
 
-// Activar después de validar manualmente las credenciales de ambas navieras.
-// Schedule::command('tracking:dispatch')->everyTenMinutes()->withoutOverlapping();
+// Despacha únicamente shipments cuyo intervalo de consulta ya venció.
+Schedule::command('tracking:dispatch')->everyTenMinutes()->withoutOverlapping();
