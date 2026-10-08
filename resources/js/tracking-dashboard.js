@@ -2,14 +2,64 @@ import { mountMaritimeMap } from './maritime-map';
 
 export default () => {
     let mapController = null;
+    let mapVersion = 0;
+    let mapRender = Promise.resolve();
     return {
     booking: '', carrier: '', shipment: null, selected: '', loading: false, error: '',
     mapError: '',
-    destroy() { mapController?.destroy(); },
+    destroy() { mapVersion++; mapController?.destroy(); },
+    get selectedContainer() {
+        return this.shipment?.containers.find(item => String(item.id) === this.selected) || null;
+    },
     get events() {
         if (!this.shipment) return [];
-        const container = this.shipment.containers.find(item => String(item.id) === this.selected);
-        return container ? container.events : this.shipment.events;
+        return this.selectedContainer?.events || [];
+    },
+    async selectContainer(id) {
+        this.selected = String(id);
+        await this.renderMap();
+    },
+    async renderMap() {
+        const version = ++mapVersion;
+        const points = this.events
+            .filter(event => event.location?.lat != null && event.location?.lng != null)
+            .map(event => ({
+                lat: Number(event.location.lat), lng: Number(event.location.lng),
+                date: event.event_date, is_actual: event.is_actual,
+                route_type: event.route_type, transport_type: event.transport_type,
+                location: event.location,
+                event: {
+                    id: event.id, code: event.event_code, description: event.description,
+                    type: event.event_type, classifier_code: event.event_classifier_code,
+                    status: event.status, date: event.event_date, is_actual: event.is_actual,
+                    transport_type: event.transport_type, vessel_name: event.vessel?.name,
+                    voyage: event.voyage,
+                },
+            }))
+            .filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng))
+            .reduce((points, point) => {
+                const previous = points.at(-1);
+                if (!previous || previous.location.id !== point.location.id) points.push(point);
+                else if (point.route_type === 'SEA' || previous.route_type !== 'SEA') points[points.length - 1] = point;
+                return points;
+            }, []);
+        mapRender = mapRender.then(async () => {
+            if (version !== mapVersion) return;
+            mapController?.destroy(); mapController = null;
+            this.mapError = '';
+            await this.$nextTick();
+            if (version !== mapVersion) return;
+            try {
+                const controller = await mountMaritimeMap(this.$refs.maritimeMap, points, message => {
+                    if (version === mapVersion) this.mapError = message;
+                });
+                if (version !== mapVersion) controller.destroy();
+                else mapController = controller;
+            } catch {
+                if (version === mapVersion) this.mapError = 'No fue posible cargar el mapa. Los eventos siguen disponibles.';
+            }
+        });
+        await mapRender;
     },
     date(value) {
         if (!value) return '—';
@@ -20,7 +70,7 @@ export default () => {
         if (this.loading) return;
         const booking = this.booking.trim();
         if (!booking) { this.error = 'Ingresa un número de booking.'; return; }
-        mapController?.destroy(); mapController = null;
+        mapVersion++; mapController?.destroy(); mapController = null;
         this.loading = true; this.error = ''; this.mapError = ''; this.shipment = null; this.selected = '';
         try {
             const url = new URL(`${this.$root.dataset.searchUrl}/${encodeURIComponent(booking)}`, window.location.origin);
@@ -33,12 +83,8 @@ export default () => {
             const result = await response.json();
             if (!result.data) throw new Error('No se encontró tracking para este booking.');
             this.shipment = result.data;
-            await this.$nextTick();
-            try {
-                mapController = await mountMaritimeMap(this.$refs.maritimeMap, this.shipment.route_points || [], message => { this.mapError = message; });
-            } catch {
-                this.mapError = 'No fue posible cargar el mapa. Los eventos siguen disponibles.';
-            }
+            this.selected = String(this.shipment.containers[0]?.id || '');
+            await this.renderMap();
         } catch (error) {
             this.error = error instanceof TypeError ? 'No se pudo conectar. Revisa tu conexión.' : error.message;
         } finally { this.loading = false; }
