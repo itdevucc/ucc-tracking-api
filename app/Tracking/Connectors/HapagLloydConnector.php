@@ -5,6 +5,7 @@ namespace App\Tracking\Connectors;
 use App\Contracts\CarrierTrackingConnector;
 use App\Data\CarrierTrackingResponse;
 use App\Models\TrackingShipment;
+use App\Tracking\CarrierEventPages;
 use Illuminate\Support\Facades\Http;
 use LogicException;
 
@@ -31,26 +32,12 @@ class HapagLloydConnector implements CarrierTrackingConnector
             'carrierBookingReference' => $shipment->booking_reference
         ];
 
-        if ($shipment->last_synced_at) {
-
-            $query['eventCreatedDateTime:gte'] = $shipment->last_synced_at->clone()->subMinutes(5)->toIso8601String();
-
-        }
-
-        $response = Http::acceptJson()
+        return CarrierEventPages::fetch(fn (?string $cursor) => Http::acceptJson()
             ->withHeaders([
                 'X-IBM-Client-Id' => $clientId,
                 'X-IBM-Client-Secret' => $clientSecret,
             ])
             ->retry(3, 500, throw: false)
-            ->get(config('tracking.hapag_lloyd.base_url').'/', $query);
-
-        $response->throw();
-
-        return new CarrierTrackingResponse(
-            events: $response->status() === 204 ? [] : $response->json(),
-            httpStatus: $response->status(),
-            apiVersion: $response->header('API-Version') ?? '2.3.3',
-        );
+            ->get(config('tracking.hapag_lloyd.base_url').'/', $cursor === null ? $query : $query + ['cursor' => $cursor]), '2.3.3');
     }
 }

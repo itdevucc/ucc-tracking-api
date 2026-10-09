@@ -30,7 +30,7 @@ class DcsaEventIngestionService
 
         $encoded = json_encode($this->sorted($response->events), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
 
-        $checksum = hash('sha256', config('tracking.ingestion_version').'|'.$encoded);
+        $checksum = hash('sha256', config('tracking.ingestion_version').'|'.$shipment->booking_reference.'|'.$encoded);
 
         $raw = TrackingRawPayload::query()->firstOrCreate(
             [
@@ -49,20 +49,13 @@ class DcsaEventIngestionService
             ],
         );
 
-        if (! $raw->wasRecentlyCreated && $raw->processing_status === 'PROCESSED') {
-
-            $shipment->update([
-                'last_synced_at' => now(),
-                'next_sync_at' => now()->addMinutes(config('tracking.sync.interval_minutes')),
-                'consecutive_failures' => 0,
-                'last_error' => null,
-            ]);
-
-            return ['created' => 0, 'updated' => 0];
-
-        }
-
         return DB::transaction(function () use ($shipment, $response, $raw) {
+
+            // Solo reemplazar después de recibir todas las páginas válidas.
+            // Una respuesta vacía no elimina el historial disponible.
+            if ($response->events !== []) {
+                $shipment->events()->delete();
+            }
 
             $created = 0;
 
@@ -87,7 +80,9 @@ class DcsaEventIngestionService
 
                 $transportCall = $this->transportCall($shipment, $event, $location);
 
-                $fingerprint = hash('sha256', json_encode($this->sorted($event), JSON_THROW_ON_ERROR));
+                $fingerprint = hash('sha256', filled($event['eventID'] ?? null)
+                    ? 'eventID:'.$event['eventID']
+                    : json_encode($this->sorted($event), JSON_THROW_ON_ERROR));
 
                 $attributes = [
                     'tracking_container_id' => $container?->id,
@@ -121,10 +116,14 @@ class DcsaEventIngestionService
 
             }
 
+            if ($response->events !== []) {
+                $shipment->containers()->whereDoesntHave('events')->delete();
+            }
+
             $latest = $shipment->events()->where('event_classifier_code', 'ACT')->latest('event_date_time')->first();
 
             $shipment->update([
-                'canonical_status' => $latest?->canonical_status ?? $shipment->canonical_status,
+                'canonical_status' => $latest?->canonical_status ?? ($response->events === [] ? $shipment->canonical_status : 'UNKNOWN'),
                 'last_synced_at' => now(),
                 'next_sync_at' => now()->addMinutes(config('tracking.sync.interval_minutes')),
                 'consecutive_failures' => 0,

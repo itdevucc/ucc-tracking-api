@@ -8,6 +8,8 @@ use App\Tracking\Connectors\MscConnector;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Gate;
+use App\Models\User;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -29,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::define('manage-users', fn (User $user) => in_array(
+            strtolower($user->email), config('internal.administrators', []), true,
+        ));
+
         RateLimiter::for('api-token', function (Request $request) {
             $email = Str::lower((string) $request->input('email'));
 

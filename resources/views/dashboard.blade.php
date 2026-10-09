@@ -1,6 +1,6 @@
 <x-app-layout>
 <x-slot name="header"><p class="text-xs font-semibold uppercase tracking-widest text-red-600">UCC · Tracking marítimo</p><h1 class="mt-1 text-2xl font-semibold text-gray-800">Buscar booking</h1></x-slot>
-<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="trackingDashboard" data-search-url="{{ url('/dashboard/tracking') }}">
+<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="trackingDashboard" data-search-url="{{ url('/dashboard/tracking') }}" data-login-url="{{ route('login') }}">
 <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 <h2 class="text-lg font-semibold text-gray-800">Consulta tu embarque</h2><p class="mt-1 text-sm text-gray-500">Busca el número de booking de la naviera para ver su tracking guardado.</p>
 <form class="mt-5 flex flex-wrap items-end gap-4" @submit.prevent="search">

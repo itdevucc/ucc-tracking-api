@@ -76,7 +76,10 @@ export default () => {
             const url = new URL(`${this.$root.dataset.searchUrl}/${encodeURIComponent(booking)}`, window.location.origin);
             if (this.carrier) url.searchParams.set('carrier', this.carrier);
             const response = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
-            if (response.status === 401 || response.status === 419 || response.redirected) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.');
+            if (response.status === 401 || response.status === 419 || response.redirected) {
+                window.location.assign(this.$root.dataset.loginUrl);
+                return;
+            }
             if (response.status === 403) throw new Error('Verifica tu correo para consultar el tracking.');
             if (response.status === 404) throw new Error('No se encontró tracking guardado para este booking y naviera.');
             if (!response.ok) throw new Error('No se pudo consultar el tracking. Intenta nuevamente.');
