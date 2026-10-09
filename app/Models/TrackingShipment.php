@@ -32,18 +32,25 @@ class TrackingShipment extends Model
 
     public function stopSyncIfDestinationReached(): bool
     {
+
         if ($this->tracking_completed_at) {
+
             return true;
+
         }
 
         if (! $this->pod_code || ! $this->expected_container_count) {
+
             return false;
+
         }
 
         $containers = $this->containers()->get();
 
         if ($containers->count() < $this->expected_container_count || $containers->isEmpty()) {
+
             return false;
+
         }
 
         $discharged = $this->events()
@@ -56,7 +63,9 @@ class TrackingShipment extends Model
             ->pluck('tracking_container_id');
 
         if ($containers->contains(fn ($container) => ! $discharged->contains($container->id))) {
+
             return false;
+
         }
 
         $this->update([
@@ -66,6 +75,7 @@ class TrackingShipment extends Model
         ]);
 
         return true;
+
     }
 
     public function containers(): HasMany

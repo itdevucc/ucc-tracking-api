@@ -24,17 +24,23 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
 
     public function __construct(public readonly TrackingShipment $shipment)
     {
+
         $this->onQueue('tracking');
+
     }
 
     public function uniqueId(): string
     {
+
         return 'tracking-v2:'.$this->shipment->id;
+
     }
 
     public function backoff(): array
     {
+
         return [60, 300, 900, 3600];
+
     }
 
     public function handle(CarrierConnectorManager $connectors, DcsaEventIngestionService $ingestion, CarrierTrackingAvailability $availability): void
@@ -43,7 +49,9 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
         $shipment = $this->shipment->fresh('carrier');
 
         if (! $shipment || $shipment->stopSyncIfDestinationReached() || ! $shipment->sync_enabled) {
+
             return;
+
         }
 
         $run = TrackingSyncRun::query()->create([
@@ -93,5 +101,6 @@ class SyncTrackingShipment implements ShouldBeUnique, ShouldQueue
             throw $exception;
 
         }
+
     }
 }

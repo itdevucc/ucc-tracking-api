@@ -8,6 +8,7 @@ class MscRequestLimiter
 {
     public function acquire(): void
     {
+
         $cache = Cache::store(config('tracking.msc.rate_limit_store'));
 
         $key = 'tracking:msc:request-delay:'.hash('sha256', (string) config('tracking.msc.client_id'));

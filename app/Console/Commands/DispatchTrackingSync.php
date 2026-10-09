@@ -31,5 +31,6 @@ class DispatchTrackingSync extends Command
         $this->info("Sincronizaciones enviadas: {$shipments->count()}");
 
         return self::SUCCESS;
+
     }
 }

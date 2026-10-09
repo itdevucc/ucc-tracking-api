@@ -18,7 +18,9 @@ class MscConnector implements CarrierTrackingConnector
 
     public function key(): string
     {
+
         return 'msc';
+
     }
 
     /**
@@ -27,7 +29,9 @@ class MscConnector implements CarrierTrackingConnector
      */
     public function fetch(TrackingShipment $shipment): CarrierTrackingResponse
     {
+
         $token = $this->tokens->token();
+
         $query = [config('tracking.msc.booking_parameter') => $shipment->booking_reference];
 
         return CarrierEventPages::fetch(fn (?string $cursor) => Http::acceptJson()
@@ -35,5 +39,6 @@ class MscConnector implements CarrierTrackingConnector
             ->beforeSending(fn () => $this->limiter->acquire())
             ->retry(3, 500, throw: false)
             ->get(config('tracking.msc.base_url').'/events', $cursor === null ? $query : $query + ['cursor' => $cursor]), '2.2');
+
     }
 }

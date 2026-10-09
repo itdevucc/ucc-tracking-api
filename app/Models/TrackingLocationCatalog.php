@@ -21,16 +21,20 @@ class TrackingLocationCatalog extends Model
 
     protected function casts(): array
     {
+
         return [
             'latitude' => 'float',
             'longitude' => 'float',
             'valid_from' => 'date',
             'valid_to' => 'date',
         ];
+
     }
 
     public function trackingLocations(): HasMany
     {
+
         return $this->hasMany(TrackingLocation::class);
+
     }
 }

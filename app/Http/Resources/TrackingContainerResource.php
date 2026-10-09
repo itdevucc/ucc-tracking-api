@@ -9,8 +9,11 @@ class TrackingContainerResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+
         $events = $this->events->sortBy('event_date_time')->values();
+
         $departure = $events->first(fn ($event) => in_array($event->event_code, ['LOAD', 'DEPA'], true));
+
         $arrival = $events->first(fn ($event) => in_array($event->event_code, ['ARRI', 'DISC'], true));
 
         return [
@@ -27,5 +30,6 @@ class TrackingContainerResource extends JsonResource
             'last_event' => $events->last() ? (new TrackingEventResource($events->last()))->resolve($request) : null,
             'events' => TrackingEventResource::collection($events)->resolve($request),
         ];
+
     }
 }

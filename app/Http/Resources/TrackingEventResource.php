@@ -9,6 +9,7 @@ class TrackingEventResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+
         $call = $this->transportCall;
 
         return [
@@ -36,6 +37,7 @@ class TrackingEventResource extends JsonResource
                 'smdg_code' => $this->location->catalog->terminal_code,
             ] : null,
         ];
+
     }
 
 }

@@ -14,12 +14,15 @@ class LinkTrackingLocationsToCatalog extends Command
 
     public function handle(LocationCatalogMatcher $matcher): int
     {
+
         $linked = 0;
 
         TrackingLocation::query()
             ->whereNull('tracking_location_catalog_id')
             ->chunkById(500, function ($locations) use ($matcher, &$linked) {
+
                 foreach ($locations as $location) {
+
                     $catalog = $matcher->find(
                         $location->un_location_code,
                         $location->facility_smdg_code,
@@ -27,7 +30,9 @@ class LinkTrackingLocationsToCatalog extends Command
                     );
 
                     if (! $catalog) {
+
                         continue;
+
                     }
 
                     $location->update([
@@ -39,11 +44,14 @@ class LinkTrackingLocationsToCatalog extends Command
                     ]);
 
                     $linked++;
+
                 }
+
             });
 
         $this->info("Ubicaciones relacionadas: {$linked}");
 
         return self::SUCCESS;
+
     }
 }

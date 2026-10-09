@@ -11,11 +11,15 @@ class Carrier extends Model
 
     protected function casts(): array
     {
+
         return ['is_active' => 'boolean', 'settings' => 'array'];
+
     }
 
     public function shipments(): HasMany
     {
+
         return $this->hasMany(TrackingShipment::class);
+
     }
 }

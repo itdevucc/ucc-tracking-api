@@ -11,6 +11,8 @@ class TrackingContainer extends Model
 
     public function events(): HasMany
     {
+
         return $this->hasMany(TrackingEvent::class);
+
     }
 }

@@ -17,6 +17,7 @@ class DcsaEventIngestionService
 {
     public function __construct(private readonly LocationCatalogMatcher $locationCatalogs)
     {
+
     }
 
     /** @return array{created: int, updated: int}
@@ -24,8 +25,11 @@ class DcsaEventIngestionService
      */
     public function ingest(TrackingShipment $shipment, CarrierTrackingResponse $response): array
     {
+
         if ($shipment->stopSyncIfDestinationReached()) {
+
             return ['created' => 0, 'updated' => 0];
+
         }
 
         $encoded = json_encode($this->sorted($response->events), JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
@@ -54,7 +58,9 @@ class DcsaEventIngestionService
             // Solo reemplazar después de recibir todas las páginas válidas.
             // Una respuesta vacía no elimina el historial disponible.
             if ($response->events !== []) {
+
                 $shipment->events()->delete();
+
             }
 
             $created = 0;
@@ -98,9 +104,7 @@ class DcsaEventIngestionService
                     'event_created_date_time' => $event['eventCreatedDateTime'] ?? null,
                     'document_type_code' => $event['documentTypeCode'] ?? null,
                     'document_id' => $event['documentID'] ?? null,
-                    'description' => filled($event['eventTypeDescription'] ?? null)
-                        ? $event['eventTypeDescription']
-                        : $mapping?->label_es,
+                    'description' => $this->eventDescription($event, $mapping?->label_es),
                     'references' => $event['documentReferences'] ?? $event['references'] ?? null,
                 ];
 
@@ -117,7 +121,9 @@ class DcsaEventIngestionService
             }
 
             if ($response->events !== []) {
+
                 $shipment->containers()->whereDoesntHave('events')->delete();
+
             }
 
             $latest = $shipment->events()->where('event_classifier_code', 'ACT')->latest('event_date_time')->first();
@@ -140,18 +146,40 @@ class DcsaEventIngestionService
 
     }
 
+    private function eventDescription(array $event, ?string $fallback): ?string
+    {
+
+        foreach (['description', 'eventTypeDescription'] as $field) {
+
+            if (is_string($event[$field] ?? null) && filled($event[$field])) {
+
+                return $event[$field];
+
+            }
+
+        }
+
+        return $fallback;
+
+    }
+
     private function eventCode(string $type, array $event): string
     {
+
         return match ($type) {
+
             'EQUIPMENT' => $event['equipmentEventTypeCode'] ?? 'UNKNOWN',
             'TRANSPORT' => $event['transportEventTypeCode'] ?? 'UNKNOWN',
             'SHIPMENT' => $event['shipmentEventTypeCode'] ?? 'UNKNOWN',
             default => 'UNKNOWN',
+
         };
+
     }
 
     private function eventMapping(TrackingShipment $shipment, string $type, string $code, ?string $classifier): ?TrackingEventMapping
     {
+
         return TrackingEventMapping::query()
             ->where(fn ($query) => $query->whereNull('carrier_id')->orWhere('carrier_id', $shipment->carrier_id))
             ->where('source_event_type', $type)
@@ -159,23 +187,21 @@ class DcsaEventIngestionService
             ->where(fn ($query) => $query->whereNull('source_classifier_code')->orWhere('source_classifier_code', $classifier))
             ->orderByRaw('carrier_id is null')
             ->first();
+
     }
 
     private function location(array $event): ?TrackingLocation
     {
+
         $eventLocation = is_array($event['eventLocation'] ?? null)
             ? $event['eventLocation']
             : [];
+
         $transportLocation = is_array(data_get($event, 'transportCall.location'))
             ? data_get($event, 'transportCall.location')
             : [];
+
         $data = array_replace($transportLocation, $eventLocation);
-
-        if (! $data) {
-
-            return null;
-
-        }
 
         $unLocationCode = strtoupper(trim((string) (
             $data['UNLocationCode']
@@ -188,9 +214,32 @@ class DcsaEventIngestionService
             ?? data_get($event, 'transportCall.location.unLocationCode')
             ?? ''
         )));
+
         $facilitySmdgCode = data_get($data, 'facility.SMDGCode');
+
+        foreach ([$eventLocation, $transportLocation, $event['transportCall'] ?? []] as $facilityData) {
+
+            if (! filled($facilitySmdgCode)
+                && strtoupper((string) ($facilityData['facilityCodeListProvider'] ?? '')) === 'SMDG') {
+
+                $facilitySmdgCode = $facilityData['facilityCode'] ?? null;
+
+            }
+
+        }
+
+        $facilitySmdgCode = filled($facilitySmdgCode) ? strtoupper(trim($facilitySmdgCode)) : null;
+
         $locationName = trim((string) ($data['locationName'] ?? ''));
+
+        if ($unLocationCode === '' && $locationName === '') {
+
+            return null;
+
+        }
+
         $eventDate = ! empty($event['eventDateTime']) ? Carbon::parse($event['eventDateTime']) : null;
+
         $catalog = $this->locationCatalogs->find(
             $unLocationCode,
             $facilitySmdgCode,
@@ -198,22 +247,34 @@ class DcsaEventIngestionService
             $locationName,
         );
 
+        // Si la terminal no está catalogada, usar coordenadas del puerto.
+        if (! $catalog && $facilitySmdgCode && $unLocationCode !== '') {
+
+            $catalog = $this->locationCatalogs->find($unLocationCode, null, $eventDate, $locationName);
+
+        }
+
         $resolvedCode = $unLocationCode ?: $catalog?->un_location_code;
+
         $location = null;
 
         if (filled($resolvedCode)) {
+
             $location = TrackingLocation::query()
                 ->where('un_location_code', $resolvedCode)
                 ->where('facility_smdg_code', $facilitySmdgCode)
                 ->first();
+
         }
 
         if (! $location && filled($locationName)) {
+
             $location = TrackingLocation::query()
                 ->whereNull('un_location_code')
                 ->whereRaw('LOWER(name) = ?', [mb_strtolower($locationName)])
                 ->where('facility_smdg_code', $facilitySmdgCode)
                 ->first();
+
         }
 
         $location ??= new TrackingLocation();
@@ -237,6 +298,7 @@ class DcsaEventIngestionService
 
     private function container(TrackingShipment $shipment, array $event): ?TrackingContainer
     {
+
         if (empty($event['equipmentReference'])) {
 
             return null;
@@ -258,6 +320,7 @@ class DcsaEventIngestionService
 
     private function transportCall(TrackingShipment $shipment, array $event, ?TrackingLocation $location): ?TrackingTransportCall
     {
+
         $call = $event['transportCall'] ?? null;
 
         if (! $call) {
@@ -284,10 +347,12 @@ class DcsaEventIngestionService
                 'universal_service_reference' => $call['universalServiceReference'] ?? null,
             ],
         );
+
     }
 
     private function sorted(array $value): array
     {
+
         foreach ($value as &$item) {
 
             if (is_array($item)) {
@@ -307,5 +372,6 @@ class DcsaEventIngestionService
         }
 
         return $value;
+
     }
 }

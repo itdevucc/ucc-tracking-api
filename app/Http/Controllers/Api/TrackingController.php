@@ -13,6 +13,7 @@ class TrackingController extends Controller
 {
     public function show(Request $request, string $booking, CarrierTrackingAvailability $availability): JsonResponse
     {
+
         $filters = $request->validate([
             'carrier' => ['sometimes', 'string', 'max:10'],
         ]);
@@ -37,11 +38,13 @@ class TrackingController extends Controller
             ->first();
 
         if (! $shipment) {
+
             return response()->json([
                 'status' => 404,
                 'message' => 'No se encontró tracking para el booking indicado.',
                 'data' => null,
             ], 404);
+
         }
 
         $availability->markAvailable($shipment);
@@ -50,5 +53,6 @@ class TrackingController extends Controller
             'status' => 200,
             'data' => (new TrackingShipmentResource($shipment))->resolve($request),
         ]);
+
     }
 }

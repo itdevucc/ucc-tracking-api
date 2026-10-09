@@ -11,6 +11,8 @@ class TrackingTransportCall extends Model
 
     public function location(): BelongsTo
     {
+
         return $this->belongsTo(TrackingLocation::class, 'tracking_location_id');
+
     }
 }

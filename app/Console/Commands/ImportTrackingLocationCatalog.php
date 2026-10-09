@@ -15,19 +15,27 @@ class ImportTrackingLocationCatalog extends Command
 
     public function handle(): int
     {
+
         $path = base_path($this->argument('file'));
+
         $handle = fopen($path, 'r');
 
         if ($handle === false) {
+
             throw new RuntimeException("No se pudo abrir el catálogo: {$path}");
+
         }
 
         $headers = fgetcsv($handle);
+
         $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
+
         $rows = [];
+
         $total = 0;
 
         while (($values = fgetcsv($handle)) !== false) {
+
             $row = array_combine($headers, $values);
 
             $rows[] = [
@@ -45,24 +53,32 @@ class ImportTrackingLocationCatalog extends Command
             ];
 
             if (count($rows) === 500) {
+
                 $total += $this->saveRows($rows);
+
                 $rows = [];
+
             }
+
         }
 
         fclose($handle);
 
         if ($rows !== []) {
+
             $total += $this->saveRows($rows);
+
         }
 
         $this->info("Ubicaciones importadas o actualizadas: {$total}");
 
         return self::SUCCESS;
+
     }
 
     private function saveRows(array $rows): int
     {
+
         TrackingLocationCatalog::query()->upsert(
             $rows,
             ['un_location_code', 'terminal_code', 'valid_from'],
@@ -78,5 +94,6 @@ class ImportTrackingLocationCatalog extends Command
         );
 
         return count($rows);
+
     }
 }

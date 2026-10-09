@@ -13,8 +13,11 @@ class OperationalBookingRepository
 {
     public function markCarrierTrackingAvailable(TrackingShipment $shipment): void
     {
+
         $connection = config('tracking.source.connection');
+
         $bookings = $this->safeTable(config('tracking.source.table'));
+
         $carriers = $this->safeTable(config('tracking.source.carriers_table'));
 
         $this->assertSourceDatabaseIsAllowed($connection);
@@ -24,12 +27,17 @@ class OperationalBookingRepository
             ->where('id', $shipment->source_id)
             ->where('carrier_booking_number', $shipment->booking_reference)
             ->whereIn('id_naviera_salida', function ($query) use ($carriers, $shipment) {
+
                 $query->select('id')->from($carriers)->where('code', $shipment->carrier->scac);
+
             })
             ->where(function ($query) {
+
                 $query->where('has_carrier_tracking', 0)->orWhereNull('has_carrier_tracking');
+
             })
             ->update(['has_carrier_tracking' => 1]);
+
     }
 
     /**
@@ -38,9 +46,11 @@ class OperationalBookingRepository
      */
     public function candidates(int $limit, ?string $carrierCode = null): Collection
     {
+
         return $this->candidateQuery($carrierCode)
             ->limit($limit)
             ->get();
+
     }
 
     /**
@@ -48,7 +58,9 @@ class OperationalBookingRepository
      */
     public function countCandidates(): int
     {
+
         return $this->candidateQuery()->count('booking.id');
+
     }
 
     /**
@@ -56,6 +68,7 @@ class OperationalBookingRepository
      */
     public function countCandidatesByState(): Collection
     {
+
         return $this->candidateQuery()
             ->reorder()
             ->select([
@@ -67,6 +80,7 @@ class OperationalBookingRepository
             ->groupBy('state.id', 'state.name', 'state.code')
             ->orderBy('state.id')
             ->get();
+
     }
 
     /**
@@ -74,6 +88,7 @@ class OperationalBookingRepository
      */
     private function candidateQuery(?string $carrierCode = null): Builder
     {
+
         $connection = config('tracking.source.connection');
 
         $bookings = $this->safeTable(config('tracking.source.table'));
@@ -81,7 +96,9 @@ class OperationalBookingRepository
         $carriers = $this->safeTable(config('tracking.source.carriers_table'));
 
         $states = $this->safeTable(config('tracking.source.states_table'));
+
         $bookingHeaders = $this->safeTable(config('tracking.source.bookings_table'));
+
         $ports = $this->safeTable(config('tracking.source.ports_table'));
 
         $this->assertSourceDatabaseIsAllowed($connection);
@@ -122,6 +139,7 @@ class OperationalBookingRepository
         }
 
         return $query;
+
     }
 
     /**

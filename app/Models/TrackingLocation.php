@@ -11,6 +11,8 @@ class TrackingLocation extends Model
 
     public function catalog(): BelongsTo
     {
+
         return $this->belongsTo(TrackingLocationCatalog::class, 'tracking_location_catalog_id');
+
     }
 }

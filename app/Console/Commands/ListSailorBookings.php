@@ -57,5 +57,6 @@ class ListSailorBookings extends Command
         );
 
         return self::SUCCESS;
+
     }
 }

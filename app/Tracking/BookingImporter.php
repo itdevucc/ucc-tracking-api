@@ -10,11 +10,13 @@ class BookingImporter
 {
     public function __construct(private readonly OperationalBookingRepository $source)
     {
+
     }
 
     /** @return Collection<int, TrackingShipment> */
     public function import(int $limit, ?string $carrierCode = null): Collection
     {
+
         $carriers = Carrier::query()->where('is_active', true)->get()->keyBy('scac');
 
         $sourceSystem = config('database.connections.' . config('tracking.source.connection') . '.database');

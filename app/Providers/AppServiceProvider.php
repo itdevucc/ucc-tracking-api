@@ -20,10 +20,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+
         $this->app->singleton(CarrierConnectorManager::class, fn ($app) => new CarrierConnectorManager([
             $app->make(HapagLloydConnector::class),
             $app->make(MscConnector::class),
         ]));
+
     }
 
     /**
@@ -31,14 +33,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+
         Gate::define('manage-users', fn (User $user) => in_array(
             strtolower($user->email), config('internal.administrators', []), true,
         ));
 
         RateLimiter::for('api-token', function (Request $request) {
+
             $email = Str::lower((string) $request->input('email'));
 
             return Limit::perMinute(5)->by($email.'|'.$request->ip());
+
         });
+
     }
 }

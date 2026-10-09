@@ -10,6 +10,8 @@ class TrackingSyncRun extends Model
 
     protected function casts(): array
     {
+
         return ['request_parameters' => 'array', 'started_at' => 'datetime', 'finished_at' => 'datetime'];
+
     }
 }

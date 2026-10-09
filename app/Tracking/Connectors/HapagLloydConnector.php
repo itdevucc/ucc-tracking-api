@@ -13,11 +13,14 @@ class HapagLloydConnector implements CarrierTrackingConnector
 {
     public function key(): string
     {
+
         return 'hapag-lloyd';
+
     }
 
     public function fetch(TrackingShipment $shipment): CarrierTrackingResponse
     {
+
         $clientId = config('tracking.hapag_lloyd.client_id');
 
         $clientSecret = config('tracking.hapag_lloyd.client_secret');
@@ -39,5 +42,6 @@ class HapagLloydConnector implements CarrierTrackingConnector
             ])
             ->retry(3, 500, throw: false)
             ->get(config('tracking.hapag_lloyd.base_url').'/', $cursor === null ? $query : $query + ['cursor' => $cursor]), '2.3.3');
+
     }
 }

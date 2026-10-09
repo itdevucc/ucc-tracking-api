@@ -11,16 +11,22 @@ class TrackingEvent extends Model
 
     protected function casts(): array
     {
+
         return ['event_date_time' => 'datetime', 'event_created_date_time' => 'datetime', 'references' => 'array'];
+
     }
 
     public function location(): BelongsTo
     {
+
         return $this->belongsTo(TrackingLocation::class, 'tracking_location_id');
+
     }
 
     public function transportCall(): BelongsTo
     {
+
         return $this->belongsTo(TrackingTransportCall::class, 'tracking_transport_call_id');
+
     }
 }
