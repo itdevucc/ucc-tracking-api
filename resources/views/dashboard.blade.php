@@ -1,11 +1,12 @@
 <x-app-layout>
-<x-slot name="header"><p class="text-xs font-semibold uppercase tracking-widest text-red-600">UCC · Tracking marítimo</p><h1 class="mt-1 text-2xl font-semibold text-gray-800">Buscar booking</h1></x-slot>
-<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="trackingDashboard" data-search-url="{{ url('/dashboard/tracking') }}" data-login-url="{{ route('login') }}">
+@php($direct = $direct ?? false)
+<x-slot name="header"><p class="text-xs font-semibold uppercase tracking-widest text-red-600">UCC · Tracking marítimo</p><h1 class="mt-1 text-2xl font-semibold text-gray-800">{{ $direct ? 'Consultar naviera directamente' : 'Buscar booking' }}</h1></x-slot>
+<div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="trackingDashboard" data-direct="{{ $direct ? '1' : '0' }}" data-search-url="{{ $direct ? url('/tracking-direct/search') : url('/dashboard/tracking') }}" data-login-url="{{ route('login') }}">
 <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-<h2 class="text-lg font-semibold text-gray-800">Consulta tu embarque</h2><p class="mt-1 text-sm text-gray-500">Busca el número de booking de la naviera para ver su tracking guardado.</p>
+<h2 class="text-lg font-semibold text-gray-800">Consulta tu embarque</h2><p class="mt-1 text-sm text-gray-500">{{ $direct ? 'Selecciona la naviera e ingresa el booking. Se consulta su API sin guardar eventos ni importar el booking.' : 'Busca el número de booking de la naviera para ver su tracking guardado.' }}</p>
 <form class="mt-5 flex flex-wrap items-end gap-4" @submit.prevent="search">
 <div class="min-w-0 flex-1"><label for="booking" class="mb-2 block text-sm font-medium">Número de booking</label><input id="booking" x-model="booking" required maxlength="100" autocomplete="off" placeholder="Ej. 070IVA0010718" class="w-full rounded-lg border-gray-300 focus:border-red-500 focus:ring-red-500"></div>
-<div><label for="carrier" class="mb-2 block text-sm font-medium">Naviera</label><select id="carrier" x-model="carrier" class="rounded-lg border-gray-300"><option value="">Todas</option><option value="MSCU">MSC</option><option value="HLCU">Hapag-Lloyd</option></select></div>
+<div><label for="carrier" class="mb-2 block text-sm font-medium">Naviera</label><select id="carrier" x-model="carrier" class="rounded-lg border-gray-300">@unless($direct)<option value="">Todas</option>@endunless<option value="MSCU">MSC</option><option value="HLCU">Hapag-Lloyd</option></select></div>
 <button :disabled="loading" class="rounded-lg bg-red-600 px-6 py-2.5 font-semibold text-white hover:bg-red-700 disabled:opacity-50" x-text="loading ? 'Buscando…' : 'Buscar tracking'"></button>
 </form></section>
 <p x-cloak x-show="error" role="alert" class="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" x-text="error"></p>
@@ -41,9 +42,9 @@
         <div class="maritime-map-wrap"><div x-ref="maritimeMap" class="maritime-map" role="region" aria-label="Mapa de la ruta del contenedor seleccionado"></div></div>
         <p x-cloak x-show="mapError" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" x-text="mapError"></p>
         <div class="map-legend"><span><i class="map-legend-line map-actual"></i>Recorrido real</span><span><i class="map-legend-line map-planned"></i>Previsto</span><span><i class="map-legend-line map-land"></i>Tramo terrestre</span></div>
-        <section class="events-section" x-show="selectedContainer">
+        <section class="events-section" x-show="selectedContainer || ($root.dataset.direct === '1' && shipment)">
             <div class="events-title">
-                <strong x-text="'Contenedor ' + (selectedContainer?.container_number || '')"></strong>
+                <strong x-text="selectedContainer ? 'Contenedor ' + selectedContainer.container_number : 'Eventos generales del booking'"></strong>
                 <span class="bl-chip" x-show="shipment.transport_document_reference" x-text="'BL ' + (shipment.transport_document_reference || '')"></span>
                 <span x-text="(selectedContainer?.equipment_type || '—') + ' · ' + events.length + ' eventos'"></span>
             </div>
@@ -67,6 +68,9 @@
             </div>
         </section>
         <p x-show="!shipment.containers.length" class="empty-events py-6">Sin contenedores disponibles</p>
+        @if($direct)
+        <details class="mt-6"><summary class="cursor-pointer font-semibold text-gray-700">Respuesta JSON de la naviera</summary><pre class="mt-3 max-h-96 overflow-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-100" x-text="JSON.stringify(raw, null, 2)"></pre></details>
+        @endif
     </div>
 </div>
 </template>

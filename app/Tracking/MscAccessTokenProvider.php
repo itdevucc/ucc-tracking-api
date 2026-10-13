@@ -12,7 +12,11 @@ class MscAccessTokenProvider
     public function token(): string
     {
 
-        return Cache::remember('tracking:msc:access-token', now()->addMinutes(50), function () {
+        $identity = implode('|', [config('tracking.msc.tenant_id'), config('tracking.msc.client_id'), config('tracking.msc.scope')]);
+
+        $cacheKey = 'tracking:msc:access-token:'.hash('sha256', $identity);
+
+        return Cache::remember($cacheKey, now()->addMinutes(50), function () {
 
             $clientId = config('tracking.msc.client_id');
 

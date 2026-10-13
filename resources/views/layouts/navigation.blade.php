@@ -15,6 +15,7 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Tracking marítimo') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('tracking.direct')" :active="request()->routeIs('tracking.direct')">Consulta directa</x-nav-link>
                     @can('manage-users')
                         <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">Usuarios</x-nav-link>
                     @endcan
@@ -73,6 +74,7 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Tracking marítimo') }}
             </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('tracking.direct')" :active="request()->routeIs('tracking.direct')">Consulta directa</x-responsive-nav-link>
             @can('manage-users')
                 <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">Usuarios</x-responsive-nav-link>
             @endcan

@@ -149,31 +149,14 @@ class DcsaEventIngestionService
     private function eventDescription(array $event, ?string $fallback): ?string
     {
 
-        foreach (['description', 'eventTypeDescription'] as $field) {
-
-            if (is_string($event[$field] ?? null) && filled($event[$field])) {
-
-                return $event[$field];
-
-            }
-
-        }
-
-        return $fallback;
+        return DcsaEventFields::description($event, $fallback);
 
     }
 
     private function eventCode(string $type, array $event): string
     {
 
-        return match ($type) {
-
-            'EQUIPMENT' => $event['equipmentEventTypeCode'] ?? 'UNKNOWN',
-            'TRANSPORT' => $event['transportEventTypeCode'] ?? 'UNKNOWN',
-            'SHIPMENT' => $event['shipmentEventTypeCode'] ?? 'UNKNOWN',
-            default => 'UNKNOWN',
-
-        };
+        return DcsaEventFields::code(['eventType' => $type] + $event);
 
     }
 
@@ -299,20 +282,7 @@ class DcsaEventIngestionService
     private function equipmentReference(array $event): ?string
     {
 
-        if (filled($event['equipmentReference'] ?? null)) {
-
-            return $event['equipmentReference'];
-
-        }
-
-        $references = collect($event['references'] ?? [])
-            ->filter(fn ($reference) => ($reference['referenceType'] ?? null) === 'EQ')
-            ->pluck('referenceValue')
-            ->filter()
-            ->unique()
-            ->values();
-
-        return $references->count() === 1 ? $references->first() : null;
+        return DcsaEventFields::equipmentReference($event);
 
     }
 
