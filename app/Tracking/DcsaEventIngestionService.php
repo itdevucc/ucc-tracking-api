@@ -86,16 +86,16 @@ class DcsaEventIngestionService
 
                 $transportCall = $this->transportCall($shipment, $event, $location);
 
-                $fingerprint = hash('sha256', filled($event['eventID'] ?? null)
-                    ? 'eventID:'.$event['eventID']
-                    : json_encode($this->sorted($event), JSON_THROW_ON_ERROR));
+                $sourceEventId = $event['eventID'] ?? $event['eventId'] ?? null;
+
+                $fingerprint = $this->eventFingerprint($event);
 
                 $attributes = [
                     'tracking_container_id' => $container?->id,
                     'tracking_transport_call_id' => $transportCall?->id,
                     'tracking_location_id' => $location?->id,
                     'tracking_raw_payload_id' => $raw->id,
-                    'source_event_id' => $event['eventID'] ?? null,
+                    'source_event_id' => $sourceEventId,
                     'event_type' => $type,
                     'event_classifier_code' => $event['eventClassifierCode'] ?? null,
                     'event_code' => $code,
@@ -296,10 +296,50 @@ class DcsaEventIngestionService
 
     }
 
+    private function equipmentReference(array $event): ?string
+    {
+
+        if (filled($event['equipmentReference'] ?? null)) {
+
+            return $event['equipmentReference'];
+
+        }
+
+        $references = collect($event['references'] ?? [])
+            ->filter(fn ($reference) => ($reference['referenceType'] ?? null) === 'EQ')
+            ->pluck('referenceValue')
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $references->count() === 1 ? $references->first() : null;
+
+    }
+
+    private function eventFingerprint(array $event): string
+    {
+
+        $sourceId = $event['eventID'] ?? $event['eventId'] ?? null;
+
+        $identity = filled($sourceId) ? [
+            'source_id' => $sourceId,
+            'type' => $event['eventType'] ?? null,
+            'code' => $this->eventCode(strtoupper((string) ($event['eventType'] ?? 'UNKNOWN')), $event),
+            'classifier' => $event['eventClassifierCode'] ?? null,
+            'container' => $this->equipmentReference($event),
+            'transport_call' => data_get($event, 'transportCall.transportCallID'),
+        ] : $event;
+
+        return hash('sha256', json_encode($this->sorted($identity), JSON_THROW_ON_ERROR));
+
+    }
+
     private function container(TrackingShipment $shipment, array $event): ?TrackingContainer
     {
 
-        if (empty($event['equipmentReference'])) {
+        $equipmentReference = $this->equipmentReference($event);
+
+        if (! filled($equipmentReference)) {
 
             return null;
 
@@ -308,7 +348,7 @@ class DcsaEventIngestionService
         return TrackingContainer::query()->updateOrCreate(
             [
                 'tracking_shipment_id' => $shipment->id,
-                'equipment_reference' => $event['equipmentReference']
+                'equipment_reference' => $equipmentReference
             ],
             [
                 'iso_equipment_code' => $event['ISOEquipmentCode'] ?? null,

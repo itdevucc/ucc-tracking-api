@@ -124,6 +124,31 @@ class TrackingShipmentResource extends JsonResource
 
         }
 
+        if (! $last) {
+
+            // La salida corresponde al origen, no a una carga de transbordo.
+            $originCode = $matches->first()?->location?->un_location_code;
+
+            if (filled($originCode)) {
+
+                $matches = $matches->filter(fn ($event) => $event->location?->un_location_code === $originCode);
+
+            }
+
+            $departures = $matches->filter(fn ($event) => strtoupper((string) $event->event_code) === 'DEPA');
+
+            if ($departures->isNotEmpty()) {
+
+                $matches = $departures;
+
+            }
+
+            $actual = $matches->filter(fn ($event) => strtoupper((string) $event->event_classifier_code) === 'ACT');
+
+            return ($actual->isNotEmpty() ? $actual : $matches)->first();
+
+        }
+
         $estimated = $matches->filter(
             fn ($event) => strtoupper((string) $event->event_classifier_code) !== 'ACT',
         );
