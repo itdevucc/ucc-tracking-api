@@ -35,17 +35,17 @@
             <template x-for="container in shipment.containers" :key="container.id">
                 <button type="button" class="container-chip" :class="{ active: selected === String(container.id) }" :aria-pressed="selected === String(container.id)" @click="selectContainer(container.id)">
                     <strong x-text="container.container_number || 'Sin número'"></strong>
-                    <small x-show="shipment.transport_document_reference" x-text="'BL ' + (shipment.transport_document_reference || '')"></small>
+                    <small x-show="container.transport_document_reference" x-text="'BL ' + (container.transport_document_reference || '')"></small>
                 </button>
             </template>
         </div>
         <div class="maritime-map-wrap"><div x-ref="maritimeMap" class="maritime-map" role="region" aria-label="Mapa de la ruta del contenedor seleccionado"></div></div>
         <p x-cloak x-show="mapError" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" x-text="mapError"></p>
         <div class="map-legend"><span><i class="map-legend-line map-actual"></i>Recorrido real</span><span><i class="map-legend-line map-planned"></i>Previsto</span><span><i class="map-legend-line map-land"></i>Tramo terrestre</span></div>
-        <section class="events-section" x-show="selectedContainer || ($root.dataset.direct === '1' && shipment)">
+        <section class="events-section" x-show="shipment">
             <div class="events-title">
                 <strong x-text="selectedContainer ? 'Contenedor ' + selectedContainer.container_number : 'Eventos generales del booking'"></strong>
-                <span class="bl-chip" x-show="shipment.transport_document_reference" x-text="'BL ' + (shipment.transport_document_reference || '')"></span>
+                <span class="bl-chip" x-show="selectedContainer?.transport_document_reference" x-text="'BL ' + (selectedContainer?.transport_document_reference || '')"></span>
                 <span x-text="(selectedContainer?.equipment_type || '—') + ' · ' + events.length + ' eventos'"></span>
             </div>
             <div class="table-responsive">

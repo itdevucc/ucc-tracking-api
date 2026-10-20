@@ -100,8 +100,8 @@ class DcsaEventIngestionService
                     'event_classifier_code' => $event['eventClassifierCode'] ?? null,
                     'event_code' => $code,
                     'canonical_status' => $mapping?->canonical_status ?? 'UNKNOWN',
-                    'event_date_time' => $event['eventDateTime'],
-                    'event_created_date_time' => $event['eventCreatedDateTime'] ?? null,
+                    'event_date_time' => $this->utcDateTime($event['eventDateTime']),
+                    'event_created_date_time' => $this->utcDateTime($event['eventCreatedDateTime'] ?? null),
                     'document_type_code' => $event['documentTypeCode'] ?? null,
                     'document_id' => $event['documentID'] ?? null,
                     'description' => $this->eventDescription($event, $mapping?->label_es),
@@ -136,13 +136,20 @@ class DcsaEventIngestionService
                 'last_error' => null,
             ]);
 
-            $raw->update(['processing_status' => 'PROCESSED', 'processed_at' => now()]);
+            $raw->update(['processing_status' => 'PROCESSED', 'processed_at' => now(), 'received_at' => now()]);
 
             $shipment->stopSyncIfDestinationReached();
 
             return compact('created', 'updated');
 
         });
+
+    }
+
+    private function utcDateTime(?string $value): ?string
+    {
+
+        return filled($value) ? Carbon::parse($value)->utc()->format('Y-m-d H:i:s') : null;
 
     }
 
@@ -176,44 +183,13 @@ class DcsaEventIngestionService
     private function location(array $event): ?TrackingLocation
     {
 
-        $eventLocation = is_array($event['eventLocation'] ?? null)
-            ? $event['eventLocation']
-            : [];
+        $data = DcsaEventFields::location($event);
 
-        $transportLocation = is_array(data_get($event, 'transportCall.location'))
-            ? data_get($event, 'transportCall.location')
-            : [];
+        $unLocationCode = $data['un_location_code'];
 
-        $data = array_replace($transportLocation, $eventLocation);
+        $facilitySmdgCode = $data['facility_smdg_code'];
 
-        $unLocationCode = strtoupper(trim((string) (
-            $data['UNLocationCode']
-            ?? $data['unLocationCode']
-            ?? $event['UNLocationCode']
-            ?? $event['unLocationCode']
-            ?? data_get($event, 'transportCall.UNLocationCode')
-            ?? data_get($event, 'transportCall.unLocationCode')
-            ?? data_get($event, 'transportCall.location.UNLocationCode')
-            ?? data_get($event, 'transportCall.location.unLocationCode')
-            ?? ''
-        )));
-
-        $facilitySmdgCode = data_get($data, 'facility.SMDGCode');
-
-        foreach ([$eventLocation, $transportLocation, $event['transportCall'] ?? []] as $facilityData) {
-
-            if (! filled($facilitySmdgCode)
-                && strtoupper((string) ($facilityData['facilityCodeListProvider'] ?? '')) === 'SMDG') {
-
-                $facilitySmdgCode = $facilityData['facilityCode'] ?? null;
-
-            }
-
-        }
-
-        $facilitySmdgCode = filled($facilitySmdgCode) ? strtoupper(trim($facilitySmdgCode)) : null;
-
-        $locationName = trim((string) ($data['locationName'] ?? ''));
+        $locationName = $data['name'];
 
         if ($unLocationCode === '' && $locationName === '') {
 
@@ -268,8 +244,8 @@ class DcsaEventIngestionService
             'tracking_location_catalog_id' => $catalog?->id ?? $location->tracking_location_catalog_id,
             'facility_type_code' => data_get($event, 'transportCall.facilityTypeCode')
                 ?? $location->facility_type_code,
-            'name' => $locationName ?: ($catalog?->name ?? $location->name),
-            'country_code' => $data['countryCode']
+            'name' => $locationName ?: ($location->name ?: $catalog?->name),
+            'country_code' => $data['country_code']
                 ?? ($resolvedCode ? substr($resolvedCode, 0, 2) : $location->country_code),
             'latitude' => $catalog?->latitude ?? $location->latitude,
             'longitude' => $catalog?->longitude ?? $location->longitude,
@@ -298,6 +274,7 @@ class DcsaEventIngestionService
             'classifier' => $event['eventClassifierCode'] ?? null,
             'container' => $this->equipmentReference($event),
             'transport_call' => data_get($event, 'transportCall.transportCallID'),
+            'transport_documents' => DcsaEventFields::transportDocuments($event),
         ] : $event;
 
         return hash('sha256', json_encode($this->sorted($identity), JSON_THROW_ON_ERROR));
@@ -320,10 +297,10 @@ class DcsaEventIngestionService
                 'tracking_shipment_id' => $shipment->id,
                 'equipment_reference' => $equipmentReference
             ],
-            [
+            array_filter([
                 'iso_equipment_code' => $event['ISOEquipmentCode'] ?? null,
                 'empty_indicator_code' => $event['emptyIndicatorCode'] ?? null,
-            ],
+            ], fn ($value) => filled($value)),
         );
 
     }

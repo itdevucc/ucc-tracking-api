@@ -109,25 +109,13 @@ class DirectTrackingSnapshot
     private function location(array $event, array &$cache): ?TrackingLocation
     {
 
-        $call = $event['transportCall'] ?? [];
+        $data = DcsaEventFields::location($event);
 
-        $nested = is_array($call['location'] ?? null) ? $call['location'] : [];
+        $port = $data['un_location_code'];
 
-        $explicit = is_array($event['eventLocation'] ?? null) ? $event['eventLocation'] : [];
+        $name = $data['name'];
 
-        $data = array_replace($call, $nested, $explicit);
-
-        $port = strtoupper(trim((string) ($data['UNLocationCode'] ?? $data['unLocationCode'] ?? $event['UNLocationCode'] ?? $event['unLocationCode'] ?? '')));
-
-        $name = $data['locationName'] ?? '';
-
-        $terminal = data_get($data, 'facility.SMDGCode');
-
-        if (! filled($terminal) && strtoupper((string) ($data['facilityCodeListProvider'] ?? '')) === 'SMDG') {
-
-            $terminal = $data['facilityCode'] ?? null;
-
-        }
+        $terminal = $data['facility_smdg_code'];
 
         if ($port === '' && $name === '') {
 
@@ -139,33 +127,38 @@ class DirectTrackingSnapshot
 
         $key = $port.'|'.$terminal.'|'.$name.'|'.$date->toDateString();
 
-        if (isset($cache[$key])) {
+        if (! array_key_exists($key, $cache['catalogs'] ?? [])) {
 
-            return $cache[$key];
+            $catalog = $this->locations->find($port, $terminal, $date, $name);
+
+            if (! $catalog && filled($terminal) && $port !== '') {
+
+                $catalog = $this->locations->find($port, null, $date, $name);
+
+            }
+
+            $cache['catalogs'][$key] = $catalog;
 
         }
 
-        $catalog = $this->locations->find($port, $terminal, $date, $name);
+        $catalog = $cache['catalogs'][$key];
 
-        if (! $catalog && filled($terminal) && $port !== '') {
+        $locationKey = ($port ?: ($catalog?->un_location_code ?: mb_strtolower($name))).'|'.$terminal;
 
-            $catalog = $this->locations->find($port, null, $date, $name);
+        $location = $cache['locations'][$locationKey] ?? new TrackingLocation(['id' => (int) sprintf('%u', crc32($locationKey))]);
 
-        }
-
-        $location = new TrackingLocation([
-            'id' => (int) sprintf('%u', crc32(($port ?: $name).'|'.$terminal)),
+        $location->fill([
             'un_location_code' => $port ?: $catalog?->un_location_code,
-            'name' => $name ?: ($catalog?->name ?? $port),
-            'country_code' => $port ? substr($port, 0, 2) : $catalog?->country_code,
+            'name' => $name ?: ($location->name ?: ($catalog?->name ?? $port)),
+            'country_code' => $data['country_code'] ?? $catalog?->country_code,
             'facility_smdg_code' => $terminal,
-            'latitude' => $catalog?->latitude,
-            'longitude' => $catalog?->longitude,
+            'latitude' => $catalog?->latitude ?? $location->latitude,
+            'longitude' => $catalog?->longitude ?? $location->longitude,
         ]);
 
         $location->setRelation('catalog', $catalog);
 
-        return $cache[$key] = $location;
+        return $cache['locations'][$locationKey] = $location;
 
     }
 }

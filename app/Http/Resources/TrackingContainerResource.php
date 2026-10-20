@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Tracking\DcsaEventFields;
+use App\Tracking\TrackingEventSchedule;
 
 class TrackingContainerResource extends JsonResource
 {
@@ -12,14 +14,17 @@ class TrackingContainerResource extends JsonResource
 
         $events = $this->events->sortBy('event_date_time')->values();
 
-        $departure = $events->first(fn ($event) => in_array($event->event_code, ['LOAD', 'DEPA'], true));
+        $departure = TrackingEventSchedule::select($events, ['LOAD', 'DEPA'], false);
 
-        $arrival = $events->first(fn ($event) => in_array($event->event_code, ['ARRI', 'DISC'], true));
+        $arrival = TrackingEventSchedule::select($events, ['ARRI', 'DISC'], true);
+
+        $documents = $events->flatMap(fn ($event) => DcsaEventFields::transportDocuments(['references' => $event->references ?? []]))->unique()->sort()->values();
 
         return [
             'id' => $this->id,
             'shipment_id' => $this->tracking_shipment_id,
             'container_number' => $this->equipment_reference,
+            'transport_document_reference' => $documents->isEmpty() ? null : $documents->implode(', '),
             'iso_code' => $this->iso_equipment_code,
             'status' => $events->last()?->canonical_status ?? $this->canonical_status,
             'event_count' => $events->count(),

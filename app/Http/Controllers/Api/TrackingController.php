@@ -52,7 +52,7 @@ class TrackingController extends Controller
         return response()->json([
             'status' => 200,
             'data' => (new TrackingShipmentResource($shipment))->resolve($request),
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
 
     }
 }

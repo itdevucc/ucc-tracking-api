@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Tracking\DcsaEventFields;
+use App\Tracking\TrackingEventSchedule;
 
 class TrackingShipmentResource extends JsonResource
 {
@@ -96,10 +98,20 @@ class TrackingShipmentResource extends JsonResource
 
         return $this->containers->map(function ($container) use ($shipmentEvents) {
 
+            $documents = $container->events->flatMap(fn ($event) => DcsaEventFields::transportDocuments(['references' => $event->references ?? []]))->unique()->all();
+
+            $applicableEvents = $shipmentEvents->filter(function ($event) use ($documents) {
+
+                $eventDocuments = DcsaEventFields::transportDocuments(['references' => $event->references ?? []]);
+
+                return $documents === [] || $eventDocuments === [] || array_intersect($documents, $eventDocuments) !== [];
+
+            });
+
             $container->setRelation(
                 'events',
                 $container->events
-                    ->concat($shipmentEvents)
+                    ->concat($applicableEvents)
                     ->unique('id')
                     ->sortBy('event_date_time')
                     ->values(),
@@ -114,96 +126,30 @@ class TrackingShipmentResource extends JsonResource
     private function scheduleEvent($events, array $codes, bool $last)
     {
 
-        $matches = $events->filter(
-            fn ($event) => in_array(strtoupper((string) $event->event_code), $codes, true),
-        );
-
-        if ($matches->isEmpty()) {
-
-            return null;
-
-        }
-
-        if (! $last) {
-
-            // La salida corresponde al origen, no a una carga de transbordo.
-            $originCode = $matches->first()?->location?->un_location_code;
-
-            if (filled($originCode)) {
-
-                $matches = $matches->filter(fn ($event) => $event->location?->un_location_code === $originCode);
-
-            }
-
-            $departures = $matches->filter(fn ($event) => strtoupper((string) $event->event_code) === 'DEPA');
-
-            if ($departures->isNotEmpty()) {
-
-                $matches = $departures;
-
-            }
-
-            $actual = $matches->filter(fn ($event) => strtoupper((string) $event->event_classifier_code) === 'ACT');
-
-            return ($actual->isNotEmpty() ? $actual : $matches)->first();
-
-        }
-
-        $estimated = $matches->filter(
-            fn ($event) => strtoupper((string) $event->event_classifier_code) !== 'ACT',
-        );
-
-        $candidates = $estimated->isNotEmpty() ? $estimated : $matches;
-
-        return $last ? $candidates->last() : $candidates->first();
+        return TrackingEventSchedule::select($events, $codes, $last);
 
     }
 
     private function documentReference($events): ?string
     {
 
-        $documentEvent = $events->first(
-            fn ($event) => filled($event->document_id)
-                && in_array(strtoupper((string) $event->document_type_code), ['BOL', 'TRD'], true),
-        );
-
-        if ($documentEvent) {
-
-            return $documentEvent->document_id;
-
-        }
+        $documents = collect();
 
         foreach ($events as $event) {
 
-            $references = $event->references ?? [];
+            $documents = $documents->concat(DcsaEventFields::transportDocuments(['references' => $event->references ?? []]));
 
-            if ($references && ! array_is_list($references)) {
+            if (filled($event->document_id) && in_array(strtoupper((string) $event->document_type_code), ['BOL', 'BL', 'TRD'], true)) {
 
-                $references = [$references];
-
-            }
-
-            foreach ($references as $reference) {
-
-                $type = strtoupper((string) (
-                    $reference['documentReferenceType']
-                    ?? $reference['referenceType']
-                    ?? $reference['type']
-                    ?? ''
-                ));
-
-                $value = $reference['documentReferenceValue']
-                    ?? $reference['referenceValue']
-                    ?? $reference['value']
-                    ?? null;
-
-                if (filled($value) && in_array($type, ['BOL', 'BL', 'TRD'], true)) {
-
-                    return (string) $value;
-
-                }
+                $documents->push((string) $event->document_id);
 
             }
+
+        }
+
+        if ($documents->isNotEmpty()) {
+
+            return $documents->unique()->sort()->implode(', ');
 
         }
 
