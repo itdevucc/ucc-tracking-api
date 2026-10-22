@@ -78,6 +78,7 @@ class DcsaEventIngestionService
                     $type,
                     $code,
                     $event['eventClassifierCode'] ?? null,
+                    $event['emptyIndicatorCode'] ?? null,
                 );
 
                 $location = $this->location($event);
@@ -167,7 +168,7 @@ class DcsaEventIngestionService
 
     }
 
-    private function eventMapping(TrackingShipment $shipment, string $type, string $code, ?string $classifier): ?TrackingEventMapping
+    private function eventMapping(TrackingShipment $shipment, string $type, string $code, ?string $classifier, ?string $emptyIndicator): ?TrackingEventMapping
     {
 
         return TrackingEventMapping::query()
@@ -175,7 +176,10 @@ class DcsaEventIngestionService
             ->where('source_event_type', $type)
             ->where('source_event_code', $code)
             ->where(fn ($query) => $query->whereNull('source_classifier_code')->orWhere('source_classifier_code', $classifier))
+            ->where(fn ($query) => $query->whereNull('source_empty_indicator_code')->orWhere('source_empty_indicator_code', $emptyIndicator))
             ->orderByRaw('carrier_id is null')
+            ->orderByRaw('source_classifier_code is null')
+            ->orderByRaw('source_empty_indicator_code is null')
             ->first();
 
     }

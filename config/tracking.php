@@ -28,6 +28,7 @@ return [
     ],
     'ingestion_version' => env('TRACKING_INGESTION_VERSION', '2'),
     'hapag_lloyd' => [
+        'rate_limit_store' => env('HAPAG_RATE_LIMIT_STORE', 'database'),
         'base_url' => env('HAPAG_TRACKING_BASE_URL', 'https://api.hlag.com/hlag/external/v2/events'),
         'client_id' => env('HAPAG_CLIENT_ID'),
         'client_secret' => env('HAPAG_CLIENT_SECRET'),

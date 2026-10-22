@@ -65,8 +65,14 @@ class DirectTrackingSnapshot
 
             $classifier = $raw['eventClassifierCode'] ?? null;
 
-            $mapping = $mappings->first(fn ($mapping) => $mapping->source_event_type === $type && $mapping->source_event_code === $code
-                && ($mapping->source_classifier_code === null || $mapping->source_classifier_code === $classifier));
+            $mapping = $mappings
+                ->sortBy(fn ($mapping) => [
+                    $mapping->carrier_id === null ? 1 : 0,
+                    $mapping->source_classifier_code === null ? 1 : 0,
+                    $mapping->source_empty_indicator_code === null ? 1 : 0,
+                ])->first(fn ($mapping) => $mapping->source_event_type === $type && $mapping->source_event_code === $code
+                && ($mapping->source_classifier_code === null || $mapping->source_classifier_code === $classifier)
+                && ($mapping->source_empty_indicator_code === null || $mapping->source_empty_indicator_code === ($raw['emptyIndicatorCode'] ?? null)));
 
             $event = new TrackingEvent([
                 'id' => $index + 1,

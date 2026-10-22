@@ -6,11 +6,14 @@ use App\Contracts\CarrierTrackingConnector;
 use App\Data\CarrierTrackingResponse;
 use App\Models\TrackingShipment;
 use App\Tracking\CarrierEventPages;
+use App\Tracking\HapagRequestLimiter;
 use Illuminate\Support\Facades\Http;
 use LogicException;
 
 class HapagLloydConnector implements CarrierTrackingConnector
 {
+    public function __construct(private readonly HapagRequestLimiter $limiter) {}
+
     public function key(): string
     {
 
@@ -40,6 +43,7 @@ class HapagLloydConnector implements CarrierTrackingConnector
                 'X-IBM-Client-Id' => $clientId,
                 'X-IBM-Client-Secret' => $clientSecret,
             ])
+            ->beforeSending(fn () => $this->limiter->acquire())
             ->retry(3, 500, throw: false)
             ->get(config('tracking.hapag_lloyd.base_url').'/', $cursor === null ? $query : $query + ['cursor' => $cursor]), '2.3.3');
 
