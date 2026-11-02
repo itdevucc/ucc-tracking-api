@@ -55,6 +55,9 @@ class DcsaEventIngestionService
 
         return DB::transaction(function () use ($shipment, $response, $raw) {
 
+            // Serialize writes with incremental Service Bus processing for this shipment.
+            $shipment = TrackingShipment::query()->whereKey($shipment->id)->lockForUpdate()->firstOrFail();
+
             // Solo reemplazar después de recibir todas las páginas válidas.
             // Una respuesta vacía no elimina el historial disponible.
             if ($response->events !== []) {
@@ -69,53 +72,7 @@ class DcsaEventIngestionService
 
             foreach ($response->events as $event) {
 
-                $type = strtoupper((string) ($event['eventType'] ?? 'UNKNOWN'));
-
-                $code = $this->eventCode($type, $event);
-
-                $mapping = $this->eventMapping(
-                    $shipment,
-                    $type,
-                    $code,
-                    $event['eventClassifierCode'] ?? null,
-                    $event['emptyIndicatorCode'] ?? null,
-                );
-
-                $location = $this->location($event);
-
-                $container = $this->container($shipment, $event);
-
-                $transportCall = $this->transportCall($shipment, $event, $location);
-
-                $sourceEventId = $event['eventID'] ?? $event['eventId'] ?? null;
-
-                $fingerprint = $this->eventFingerprint($event);
-
-                $attributes = [
-                    'tracking_container_id' => $container?->id,
-                    'tracking_transport_call_id' => $transportCall?->id,
-                    'tracking_location_id' => $location?->id,
-                    'tracking_raw_payload_id' => $raw->id,
-                    'source_event_id' => $sourceEventId,
-                    'event_type' => $type,
-                    'event_classifier_code' => $event['eventClassifierCode'] ?? null,
-                    'event_code' => $code,
-                    'canonical_status' => $mapping?->canonical_status ?? 'UNKNOWN',
-                    'event_date_time' => $this->utcDateTime($event['eventDateTime']),
-                    'event_created_date_time' => $this->utcDateTime($event['eventCreatedDateTime'] ?? null),
-                    'document_type_code' => $event['documentTypeCode'] ?? null,
-                    'document_id' => $event['documentID'] ?? null,
-                    'description' => $this->eventDescription($event, $mapping?->label_es),
-                    'references' => $event['documentReferences'] ?? $event['references'] ?? null,
-                ];
-
-                $trackingEvent = TrackingEvent::query()->updateOrCreate(
-                    [
-                        'tracking_shipment_id' => $shipment->id,
-                        'fingerprint' => $fingerprint
-                    ],
-                    $attributes,
-                );
+                $trackingEvent = $this->storeEvent($shipment, $event, $raw);
 
                 $trackingEvent->wasRecentlyCreated ? $created++ : $updated++;
 
@@ -144,6 +101,61 @@ class DcsaEventIngestionService
             return compact('created', 'updated');
 
         });
+
+    }
+
+    public function storeEvent(TrackingShipment $shipment, array $event, TrackingRawPayload $raw): TrackingEvent
+    {
+
+        $type = strtoupper((string) ($event['eventType'] ?? 'UNKNOWN'));
+
+        $code = $this->eventCode($type, $event);
+
+        $mapping = $this->eventMapping(
+            $shipment,
+            $type,
+            $code,
+            $event['eventClassifierCode'] ?? null,
+            $event['emptyIndicatorCode'] ?? null,
+        );
+
+        $location = $this->location($event);
+
+        $container = $this->container($shipment, $event);
+
+        $transportCall = $this->transportCall($shipment, $event, $location);
+
+        $sourceEventId = $event['eventID'] ?? $event['eventId'] ?? null;
+
+        $fingerprint = $this->eventFingerprint($event);
+
+        $attributes = [
+            'tracking_container_id' => $container?->id,
+            'tracking_transport_call_id' => $transportCall?->id,
+            'tracking_location_id' => $location?->id,
+            'tracking_raw_payload_id' => $raw->id,
+            'source_event_id' => $sourceEventId,
+            'event_type' => $type,
+            'event_classifier_code' => $event['eventClassifierCode'] ?? null,
+            'event_code' => $code,
+            'canonical_status' => $mapping?->canonical_status ?? 'UNKNOWN',
+            'event_date_time' => $this->utcDateTime($event['eventDateTime']),
+            'event_created_date_time' => $this->utcDateTime($event['eventCreatedDateTime'] ?? null),
+            'document_type_code' => $event['documentTypeCode'] ?? null,
+            'document_id' => $event['documentID'] ?? null,
+            'description' => $this->eventDescription($event, $mapping?->label_es),
+            'references' => $event['documentReferences'] ?? $event['references'] ?? null,
+        ];
+
+        $trackingEvent = TrackingEvent::query()->updateOrCreate(
+            [
+                'tracking_shipment_id' => $shipment->id,
+                'fingerprint' => $fingerprint
+            ],
+            $attributes,
+        );
+
+        return $trackingEvent;
 
     }
 

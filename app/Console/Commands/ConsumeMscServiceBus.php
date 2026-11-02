@@ -50,7 +50,7 @@ class ConsumeMscServiceBus extends Command
             });
 
         }
-        $this->info('Escuchando MSC. Los mensajes se guardan como PENDING; todavía no actualizan el tracking.');
+        $this->info('Escuchando MSC. Los mensajes se guardan como PENDING; ejecuta msc:process para aplicarlos al tracking.');
 
         do {
 
