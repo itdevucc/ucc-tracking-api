@@ -82,7 +82,6 @@ class ConsumeMscServiceBus extends Command
 
             } catch (Throwable) {
 
-                // Do not print exceptions: database exceptions may contain message payloads.
                 $this->error("Falló la {$stage}. HTTP 401/403 requiere revisar permisos Listen; comprueba también red y base de datos. No se descarta el mensaje sin guardarlo.");
 
                 if ($this->option('once')) {

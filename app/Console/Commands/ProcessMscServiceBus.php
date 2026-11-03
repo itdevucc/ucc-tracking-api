@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Tracking\MscServiceBusFailure;
 use App\Tracking\MscServiceBusProcessor;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -42,16 +43,18 @@ class ProcessMscServiceBus extends Command
 
                 $this->info("Mensaje {$id}: {$status}.");
 
-            } catch (Throwable) {
+            } catch (Throwable $exception) {
 
                 // Never persist exception text: SQL exceptions can contain full payloads.
+                $reason = MscServiceBusFailure::describe($exception);
+
                 DB::table('msc_service_bus_messages')->where('id', $id)->where('processing_status', 'PENDING')
                     ->update([
                         'last_attempted_at' => now(),
-                        'processing_error' => 'No se pudo aplicar; revisar propiedades, identidad, shipment y formato DCSA.',
+                        'processing_error' => $reason,
                     ]);
 
-                $this->error("Mensaje {$id}: permanece PENDING para revisión y reintento.");
+                $this->error("Mensaje {$id}: {$reason} Permanece PENDING.");
 
                 $failures++;
 
